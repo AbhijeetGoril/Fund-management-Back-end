@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
 import firebaseAuth from "./middleware/firebaseAuth.js";
-
+import userRoutes from "./routes/userRoutes.js";
 dotenv.config();
 
 const app = express();
@@ -14,6 +14,7 @@ app.get("/", (req, res) => {
   res.send("Society Fund Backend Running 🚀");
 });
 
+app.use("/api/users", userRoutes);
 // 🔐 Protected route
 app.get("/api/protected", firebaseAuth, (req, res) => {
   res.json({
@@ -23,7 +24,7 @@ app.get("/api/protected", firebaseAuth, (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   connectDB();
