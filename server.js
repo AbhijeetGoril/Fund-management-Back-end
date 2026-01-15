@@ -4,6 +4,7 @@ import cors from "cors";
 import connectDB from "./config/db.js";
 import firebaseAuth from "./middleware/firebaseAuth.js";
 import userRoutes from "./routes/userRoutes.js";
+import societyRoutes from "./routes/societyRoutes.js";
 dotenv.config();
 
 const app = express();
@@ -14,7 +15,10 @@ app.get("/", (req, res) => {
   res.send("Society Fund Backend Running 🚀");
 });
 
+
+
 app.use("/api/users", userRoutes);
+app.use("/api/societies", societyRoutes);
 // 🔐 Protected route
 app.get("/api/protected", firebaseAuth, (req, res) => {
   res.json({
