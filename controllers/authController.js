@@ -43,3 +43,43 @@ export const sendOtp  = async (req,res)=>{
     res.status(500).json({ message: error.message });
   }
 }
+
+export const verifyOtp=async (req,res)=>{
+  try {
+    const {email,otp}=req.body
+    if(!email || !otp){
+      return res.status(400).json({ message: "Email and Otp is required" });
+    }
+    const otpRecord=await Otp.findOne({email})
+    if(!otpRecord){
+      return res.status(400).json({ message: "OTP not found or expired" });
+    }
+    // check expiry
+    if (otpRecord.expiresAt < new Date()) {
+      await Otp.deleteOne({ email });
+      return res.status(400).json({ message: "OTP expired" });
+    }
+    const isValidotp=await bcrypt.compare(otp,otpRecord.otpHash)
+    if(!isValidotp){
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+     // OTP is valid → email verified
+    await Otp.deleteOne({ email });
+    let user = await User.findOne({ email });
+     if (!user) {
+      user = await User.create({
+        email,
+        emailVerified: true,
+      });
+    } else {
+      user.emailVerified = true;
+      await user.save();
+    }
+
+    res.json({
+      message: "Email verified successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+}
