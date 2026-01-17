@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs"
 import Otp from "../models/Otp.js";
 import transporter from "../config/mailer.js";
+import User from "../models/User.js";
 
 
 export const sendOtp  = async (req,res)=>{
@@ -8,6 +9,14 @@ export const sendOtp  = async (req,res)=>{
     const {email}=req.body
     if (!email) {
       return res.status(400).json({ message: "Email is required" });
+    }
+    // 🔍 check if user already exists & verified
+    const existingUser = await User.findOne({ email });
+
+    if (existingUser && existingUser.emailVerified) {
+      return res
+        .status(400)
+        .json({ message: "Email already verified. Please login." });
     }
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpHash = await bcrypt.hash(otp, 10);
