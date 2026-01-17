@@ -4,8 +4,6 @@ import transporter from "../config/mailer.js";
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 
-
-
 export const sendOtp = async (req, res) => {
   try {
     const { email } = req.body;
@@ -83,7 +81,7 @@ export const verifyOtp = async (req, res) => {
 
     res.json({
       message: "Email verified successfully",
-      signupToken
+      signupToken,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -92,13 +90,12 @@ export const verifyOtp = async (req, res) => {
 
 export const setPassword = async (req, res) => {
   try {
-    
-    const authHeader=req.headers.authorization
+    const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "Unauthorized" });
     }
     const token = authHeader.split(" ")[1];
-    const decoad=jwt.verify(token,process.env.JWT_SECRET)
+    const decoad = jwt.verify(token, process.env.JWT_SECRET);
     const email = decoad.email;
     // 3️⃣ Validate password
     const { password } = req.body;
@@ -108,7 +105,7 @@ export const setPassword = async (req, res) => {
         .json({ message: "Password must be at least 6 characters" });
     }
 
-     // 4️⃣ Find user
+    // 4️⃣ Find user
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -124,11 +121,58 @@ export const setPassword = async (req, res) => {
     await user.save();
 
     res.json({ message: "Password set successfully" });
-
   } catch (error) {
-     if (error.name === "TokenExpiredError") {
+    if (error.name === "TokenExpiredError") {
       return res.status(401).json({ message: "Signup token expired" });
     }
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const googleAuth = async (req, res) => {
+  try {
+    // 1️⃣ Get Authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+    const token = authHeader.split(" ")[1];
+
+    // 2️⃣ Verify Firebase ID token
+    const decoded = await admin.auth().verifyIdToken(token);
+
+    const { email, name } = decoded;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email not found from Google" });
+    }
+
+    // 3️⃣ Find or create user in MongoDB
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = await User.create({
+        email,
+        name,
+        emailVerified: true, // Google emails are already verified
+      });
+    }
+    const loginToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    res
+      .cookie("token", loginToken, {
+        httpOnly: true, // 🔐 cannot be accessed by JS
+        secure: process.env.NODE_ENV === "production", // https only in prod
+        sameSite: "strict", // CSRF protection
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      })
+      .json({
+        message: "Google signup/login successful",
+        user,
+      });
+  } catch (error) {
+    res.status(401).json({ message: error.message });
   }
 };

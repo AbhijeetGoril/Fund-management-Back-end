@@ -6,6 +6,8 @@ import firebaseAuth from "./middleware/firebaseAuth.js";
 import userRoutes from "./routes/userRoutes.js";
 import societyRoutes from "./routes/societyRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import cookieParser from "cookie-parser";
+
 
 dotenv.config();          // 1️⃣ Load env FIRST
 connectDB();              // 2️⃣ Connect DB NEXT
@@ -13,6 +15,7 @@ connectDB();              // 2️⃣ Connect DB NEXT
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 
 app.get("/", (req, res) => {
   res.send("Society Fund Backend Running 🚀");
