@@ -1,5 +1,7 @@
 import bcrypt from "bcryptjs"
 import Otp from "../models/Otp.js";
+import transporter from "../config/mailer.js";
+
 
 export const sendOtp  = async (req,res)=>{
   try {
@@ -15,6 +17,17 @@ export const sendOtp  = async (req,res)=>{
       email,
       expiresAt,
       otpHash
+    })
+    await transporter.sendMail({
+      from: `"Society App" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Your OTP Code",
+      html: `
+        <h2>Email Verification</h2>
+        <p>Your OTP is:</p>
+        <h1>${otp}</h1>
+        <p>This OTP is valid for 5 minutes.</p>
+      `,
     })
     res.json({ message: "OTP sent to email" });
   } catch (error) {
