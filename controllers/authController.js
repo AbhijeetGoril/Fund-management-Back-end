@@ -1,12 +1,14 @@
-import bcrypt from "bcryptjs"
+import bcrypt from "bcryptjs";
 import Otp from "../models/Otp.js";
 import transporter from "../config/mailer.js";
 import User from "../models/User.js";
+import jwt from "jsonwebtoken";
 
 
-export const sendOtp  = async (req,res)=>{
+
+export const sendOtp = async (req, res) => {
   try {
-    const {email}=req.body
+    const { email } = req.body;
     if (!email) {
       return res.status(400).json({ message: "Email is required" });
     }
@@ -21,12 +23,12 @@ export const sendOtp  = async (req,res)=>{
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpHash = await bcrypt.hash(otp, 10);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-    await Otp.deleteMany({email})
+    await Otp.deleteMany({ email });
     await Otp.create({
       email,
       expiresAt,
-      otpHash
-    })
+      otpHash,
+    });
     await transporter.sendMail({
       from: `"Society App" <${process.env.EMAIL_USER}>`,
       to: email,
@@ -37,21 +39,21 @@ export const sendOtp  = async (req,res)=>{
         <h1>${otp}</h1>
         <p>This OTP is valid for 5 minutes.</p>
       `,
-    })
+    });
     res.json({ message: "OTP sent to email" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-}
+};
 
-export const verifyOtp=async (req,res)=>{
+export const verifyOtp = async (req, res) => {
   try {
-    const {email,otp}=req.body
-    if(!email || !otp){
+    const { email, otp } = req.body;
+    if (!email || !otp) {
       return res.status(400).json({ message: "Email and Otp is required" });
     }
-    const otpRecord=await Otp.findOne({email})
-    if(!otpRecord){
+    const otpRecord = await Otp.findOne({ email });
+    if (!otpRecord) {
       return res.status(400).json({ message: "OTP not found or expired" });
     }
     // check expiry
@@ -59,14 +61,14 @@ export const verifyOtp=async (req,res)=>{
       await Otp.deleteOne({ email });
       return res.status(400).json({ message: "OTP expired" });
     }
-    const isValidotp=await bcrypt.compare(otp,otpRecord.otpHash)
-    if(!isValidotp){
+    const isValidotp = await bcrypt.compare(otp, otpRecord.otpHash);
+    if (!isValidotp) {
       return res.status(400).json({ message: "Invalid OTP" });
     }
-     // OTP is valid → email verified
+    // OTP is valid → email verified
     await Otp.deleteOne({ email });
     let user = await User.findOne({ email });
-     if (!user) {
+    if (!user) {
       user = await User.create({
         email,
         emailVerified: true,
@@ -75,11 +77,26 @@ export const verifyOtp=async (req,res)=>{
       user.emailVerified = true;
       await user.save();
     }
+    const signupToken = jwt.sign({ email }, process.env.JWT_SECRET, {
+      expiresIn: "10m",
+    });
 
     res.json({
       message: "Email verified successfully",
+      signupToken
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-}
+};
+
+export const setPassword = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and Otp is required" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
