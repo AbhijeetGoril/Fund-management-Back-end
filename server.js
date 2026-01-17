@@ -5,6 +5,7 @@ import connectDB from "./config/db.js";
 import firebaseAuth from "./middleware/firebaseAuth.js";
 import userRoutes from "./routes/userRoutes.js";
 import societyRoutes from "./routes/societyRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 dotenv.config();
 
 const app = express();
@@ -19,6 +20,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/users", userRoutes);
 app.use("/api/societies", societyRoutes);
+app.use("/api/auth", authRoutes);
 // 🔐 Protected route
 app.get("/api/protected", firebaseAuth, (req, res) => {
   res.json({
