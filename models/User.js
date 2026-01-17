@@ -2,17 +2,25 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
-    firebaseUid: {
+    email: {
       type: String,
       required: true,
       unique: true,
     },
-    email: {
+
+    password: {
       type: String,
-      required: true,
+      default: null, // set AFTER OTP verification
     },
-    name: String,
-    
+
+    name: {
+      type: String,
+    },
+
+    emailVerified: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
