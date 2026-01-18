@@ -13,7 +13,12 @@ dotenv.config();          // 1️⃣ Load env FIRST
 connectDB();              // 2️⃣ Connect DB NEXT
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173", // frontend URL
+    credentials: true,               // allow cookies
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 

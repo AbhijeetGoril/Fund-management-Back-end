@@ -3,6 +3,7 @@ import Otp from "../models/Otp.js";
 import transporter from "../config/mailer.js";
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
+import admin from "../config/firebase.js";
 
 export const sendOtp = async (req, res) => {
   try {
