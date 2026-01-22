@@ -48,40 +48,45 @@ export const sendOtp = async (req, res) => {
 export const verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
+
     if (!email || !otp) {
-      return res.status(400).json({ message: "Email and Otp is required" });
+      return res
+        .status(400)
+        .json({ message: "Email and OTP are required" });
     }
+
     const otpRecord = await Otp.findOne({ email });
     if (!otpRecord) {
       return res.status(400).json({ message: "OTP not found or expired" });
     }
-    // check expiry
+
+    // ⏰ Check expiry
     if (otpRecord.expiresAt < new Date()) {
       await Otp.deleteOne({ email });
       return res.status(400).json({ message: "OTP expired" });
     }
-    const isValidotp = await bcrypt.compare(otp, otpRecord.otpHash);
-    if (!isValidotp) {
+
+    // 🔍 Validate OTP
+    const isValidOtp = await bcrypt.compare(otp, otpRecord.otpHash);
+    if (!isValidOtp) {
       return res.status(400).json({ message: "Invalid OTP" });
     }
-    // OTP is valid → email verified
+
+    // ✅ OTP verified → remove record
     await Otp.deleteOne({ email });
-    let user = await User.findOne({ email });
-    if (!user) {
-      user = await User.create({
+
+    // 🔐 Short-lived signup token
+    const signupToken = jwt.sign(
+      {
         email,
-        emailVerified: true,
-      });
-    } else {
-      user.emailVerified = true;
-      await user.save();
-    }
-    const signupToken = jwt.sign({ email }, process.env.JWT_SECRET, {
-      expiresIn: "10m",
-    });
+        otpVerified: true,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "10m" }
+    );
 
     res.json({
-      message: "Email verified successfully",
+      message: "OTP verified successfully",
       signupToken,
     });
   } catch (error) {
@@ -89,39 +94,67 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
+
+
+
 export const setPassword = async (req, res) => {
   try {
+    // 🔐 Check signup token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Signup token required" });
     }
+
     const token = authHeader.split(" ")[1];
-    const decoad = jwt.verify(token, process.env.JWT_SECRET);
-    const email = decoad.email;
-    // 3️⃣ Validate password
-    const { password } = req.body;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (!decoded.otpVerified) {
+      return res.status(403).json({ message: "OTP not verified" });
+    }
+
+    const { password, name = "" } = req.body;
+    const email = decoded.email; // ✅ email ONLY from token
+
     if (!password || password.length < 6) {
       return res
         .status(400)
         .json({ message: "Password must be at least 6 characters" });
     }
 
-    // 4️⃣ Find user
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    // 🚫 Prevent duplicate users
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
     }
 
-    if (!user.emailVerified) {
-      return res.status(403).json({ message: "Email not verified" });
-    }
-
-    // 5️⃣ Hash & save password
+    // 🔐 Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-    user.password = hashedPassword;
-    await user.save();
 
-    res.json({ message: "Password set successfully" });
+    const user = await User.create({
+      email,
+      password: hashedPassword,
+      name,
+      emailVerified: true,
+    });
+
+    // 🍪 Login cookie
+    const loginToken = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.cookie("token", loginToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(201).json({
+      message: "Signup completed successfully",
+      user,
+    });
   } catch (error) {
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({ message: "Signup token expired" });
@@ -130,50 +163,3 @@ export const setPassword = async (req, res) => {
   }
 };
 
-export const googleAuth = async (req, res) => {
-  try {
-    // 1️⃣ Get Authorization header
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ message: "No token provided" });
-    }
-    const token = authHeader.split(" ")[1];
-
-    // 2️⃣ Verify Firebase ID token
-    const decoded = await admin.auth().verifyIdToken(token);
-
-    const { email, name } = decoded;
-
-    if (!email) {
-      return res.status(400).json({ message: "Email not found from Google" });
-    }
-
-    // 3️⃣ Find or create user in MongoDB
-    let user = await User.findOne({ email });
-
-    if (!user) {
-      user = await User.create({
-        email,
-        name,
-        emailVerified: true, // Google emails are already verified
-      });
-    }
-    const loginToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
-
-    res
-      .cookie("token", loginToken, {
-        httpOnly: true, // 🔐 cannot be accessed by JS
-        secure: process.env.NODE_ENV === "production", // https only in prod
-        sameSite: "strict", // CSRF protection
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      })
-      .json({
-        message: "Google signup/login successful",
-        user,
-      });
-  } catch (error) {
-    res.status(401).json({ message: error.message });
-  }
-};
