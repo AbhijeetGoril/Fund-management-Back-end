@@ -30,13 +30,13 @@ app.use("/api/users", userRoutes);
 app.use("/api/societies", societyRoutes);
 app.use("/api/auth", authRoutes);
 
-app.get("/api/protected", firebaseAuth, (req, res) => {
-  res.json({
-    message: "User verified by Firebase ✅",
-    uid: req.user.uid,
-    email: req.user.email,
-  });
-});
+// app.get("/api/protected", firebaseAuth, (req, res) => {
+//   res.json({
+//     message: "User verified by Firebase ✅",
+//     uid: req.user.uid,
+//     email: req.user.email,
+//   });
+// });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

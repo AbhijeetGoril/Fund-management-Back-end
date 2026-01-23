@@ -1,25 +1,11 @@
 import User from "../models/User.js";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 
-export const syncUser = async (req, res) => {
-  try {
-    const { uid, email, name } = req.user;
-    let user = await User.findOne({ firebaseUid: uid });
-    if (!user) {
-      user = await User.create({
-        firebaseUid: uid,
-        email,
-        name,
-      });
-    }
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
 export const createUser = async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
-
+    
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "Signup token required" });
     }
@@ -34,7 +20,7 @@ export const createUser = async (req, res) => {
 
     const { password, name = "" } = req.body;
     const email = decoded.email; // ✅ email ONLY from token
-
+   
     if (!password || password.length < 6) {
       return res
         .status(400)
@@ -42,6 +28,7 @@ export const createUser = async (req, res) => {
     }
 
     const existingUser = await User.findOne({ email });
+    
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
     }
@@ -54,7 +41,7 @@ export const createUser = async (req, res) => {
       name,
       emailVerified: true,
     });
-
+    console.log(user)
     // 🍪 login cookie
     const loginToken = jwt.sign(
       { userId: user._id },
@@ -77,6 +64,7 @@ export const createUser = async (req, res) => {
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({ message: "Signup token expired" });
     }
+    console.log(error.message)
     return res.status(500).json({ message: error.message });
   }
 };

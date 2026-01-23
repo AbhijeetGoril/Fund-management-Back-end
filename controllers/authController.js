@@ -163,3 +163,50 @@ export const setPassword = async (req, res) => {
   }
 };
 
+export const googleAuth = async (req, res) => {
+  try {
+    // 1️⃣ Get Authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+    const token = authHeader.split(" ")[1];
+
+    // 2️⃣ Verify Firebase ID token
+    const decoded = await admin.auth().verifyIdToken(token);
+
+    const { email, name } = decoded;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email not found from Google" });
+    }
+
+    // 3️⃣ Find or create user in MongoDB
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = await User.create({
+        email,
+        name,
+        emailVerified: true, // Google emails are already verified
+      });
+    }
+    const loginToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    res
+      .cookie("token", loginToken, {
+        httpOnly: true, // 🔐 cannot be accessed by JS
+        secure: process.env.NODE_ENV === "production", // https only in prod
+        sameSite: "strict", // CSRF protection
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      })
+      .json({
+        message: "Google signup/login successful",
+        user,
+      });
+  } catch (error) {
+    res.status(401).json({ message: error.message });
+  }
+};
