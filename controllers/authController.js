@@ -196,7 +196,7 @@ export const googleAuth = async (req, res) => {
     });
 
     res
-      .cookie("token", loginToken, {
+      .cookie("authToken", loginToken, {
         httpOnly: true, // 🔐 cannot be accessed by JS
         secure: process.env.NODE_ENV === "production", // https only in prod
         sameSite: "strict", // CSRF protection
