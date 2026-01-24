@@ -44,12 +44,12 @@ export const createUser = async (req, res) => {
     console.log(user)
     // 🍪 login cookie
     const loginToken = jwt.sign(
-      { userId: user._id },
+      { id: user._id },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    res.cookie("token", loginToken, {
+    res.cookie("authToken", loginToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
