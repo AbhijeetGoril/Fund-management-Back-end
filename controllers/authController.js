@@ -227,3 +227,15 @@ export const getMe = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+export const logout = (req, res) => {
+  res.clearCookie("authToken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  });
+
+  return res.status(200).json({
+    message: "Logged out successfully",
+  });
+};
