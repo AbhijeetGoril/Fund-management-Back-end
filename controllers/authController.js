@@ -191,7 +191,7 @@ export const googleAuth = async (req, res) => {
         emailVerified: true, // Google emails are already verified
       });
     }
-    const loginToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+    const loginToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
 
