@@ -2,7 +2,7 @@ import express from "express";
 
 import { getMe, googleAuth, login, logout, sendOtp,setPassword,verifyOtp } from "../controllers/authController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
-import { forgotPassword, verifyResetOtp } from "../controllers/resetPassowordController.js";
+import { forgotPassword, resetPassword, verifyResetOtp } from "../controllers/resetPassowordController.js";
 
 const router=express.Router()
 router.post("/send-otp",sendOtp)
@@ -15,6 +15,7 @@ router.post("/logout", logout);
 
 router.post("/forget-password", forgotPassword);
 router.post("/verify-reset-otp", verifyResetOtp);
+router.post("/reset-password", resetPassword);
 
 
 export default router

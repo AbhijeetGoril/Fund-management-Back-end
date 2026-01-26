@@ -114,3 +114,51 @@ export const verifyResetOtp = async (req, res) => {
   }
 };
 
+export const resetPassword = async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    const resetToken = req.cookies.resetToken;
+
+    if (!resetToken || !newPassword) {
+      return res.status(400).json({ message: "Reset session expired" });
+    }
+
+    if (newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 6 characters" });
+    }
+
+    const decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+
+    if (decoded.purpose !== "reset-password") {
+      return res.status(403).json({ message: "Invalid reset token" });
+    }
+
+    const user = await User.findOne({ email: decoded.email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    // 🧹 CLEAR RESET TOKEN COOKIE
+    res.clearCookie("resetToken", {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    return res.status(200).json({
+      message: "Password reset successful",
+    });
+  } catch (error) {
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Reset session expired" });
+    }
+
+    console.error("resetPassword error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
