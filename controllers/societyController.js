@@ -1,7 +1,7 @@
 
 import User from "../models/User.js";
 import Society from "../models/Society.js";
-import Event from "../models/Event.js";
+import Event from "../models/Event/Event.js";
 
 export const createSociety = async (req, res) => {
   try {
