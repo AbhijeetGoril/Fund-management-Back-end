@@ -9,10 +9,24 @@ const participantSchema = new mongoose.Schema(
       required: true,
     },
 
+    // registered user (optional)
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      default: null, // 👈 null means NOT registered
+    },
+
+    // guest / snapshot info
+    name: {
+      type: String,
       required: true,
+    },
+
+    email: {
+      type: String,
+      required: true,
+      lowercase: true,
+      trim: true,
     },
 
     amountToPay: {
@@ -34,14 +48,11 @@ const participantSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// 🔥 AUTO-UPDATE paymentStatus
+// auto update paymentStatus
 participantSchema.pre("save", function (next) {
   this.paymentStatus =
     this.amountPaid >= this.amountToPay ? "paid" : "pending";
   next();
 });
-
-// one user can participate only once per event
-participantSchema.index({ event: 1, user: 1 }, { unique: true });
 
 export default mongoose.model("Participant", participantSchema);
