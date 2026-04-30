@@ -31,11 +31,13 @@ export const createSociety = async (req, res) => {
 };
 export const createEvent = async (req, res) => {
   try {
-    const { title,date,description,societyId } = req.body;
-    if (!title || !description || !societyId) {
-      return res.status(400).json({ message: "All fields are required" });
+    const { title, date, description, societyId } = req.body;
+
+    if (!title || !description) {
+      return res.status(400).json({ message: "Title and description are required" });
     }
-    // find logged-in user
+
+    // logged-in user
     const dbUser = await User.findOne({
       firebaseUid: req.user.uid,
     });
@@ -44,24 +46,36 @@ export const createEvent = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-     // check society
-    const society = await Society.findById(societyId);
+    let society = null;
 
-    if (!society) {
-      return res.status(404).json({ message: "Society not found" });
+    // 👉 only run this if societyId is provided
+    if (societyId) {
+      society = await Society.findById(societyId);
+
+      if (!society) {
+        return res.status(404).json({ message: "Society not found" });
+      }
+
+      const isAdmin = society.members.some(
+        (m) =>
+          m.user.toString() === dbUser._id.toString() &&
+          m.role === "admin"
+      );
+
+      if (!isAdmin) {
+        return res.status(403).json({ message: "Admin access only" });
+      }
     }
 
-    const isAdmin=society.members.some(m=>m.user.toString()===dbUser._id.toString() &&  m.role === "admin")
-    if(!isAdmin){
-      return res.status(403).json({ message: "Admin access only" });
-    }
-    const event= await Event.create({
+    // ✅ create event (with or without society)
+    const event = await Event.create({
       title,
       date,
       description,
-      society: society._id,
-      createdBy: dbUser._id
-    })
+      society: society ? society._id : null,
+      createdBy: dbUser._id,
+    });
+
     res.status(201).json(event);
   } catch (error) {
     res.status(500).json({ message: error.message });
