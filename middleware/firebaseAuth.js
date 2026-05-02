@@ -4,7 +4,7 @@ const firebaseAuth = async (req, res, next) => {
   try {
     // 1. Get Authorization header
     const authHeader = req.headers.authorization;
-
+    console.log("backend checking",authHeader)
     // 2. Check if token exists
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "No token provided" });

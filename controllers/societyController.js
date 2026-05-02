@@ -6,33 +6,59 @@ import Event from "../models/Event/Event.js";
 export const createSociety = async (req, res) => {
   try {
     const { name } = req.body;
-    if(!name){
-       return res.status(400).json({ message: "Society name is required" });
+
+    if (!name) {
+      return res.status(400).json({ message: 'Society name is required' });
     }
-    const dbUser=await User.findOne({
-       firebaseUid: req.user.uid,
-    })
-    if(!dbUser){
-      return res.status(404).json({ message: "User not found" });
+
+    // Find the user in DB using firebaseUid from auth middleware
+    const dbUser = await User.findOne({ firebaseUid: req.user.uid });
+    if (!dbUser) {
+      return res.status(404).json({ message: 'User not found' });
     }
-    const society=await Society.create({
+
+    // Check for duplicate society name (case-insensitive if needed)
+    const existingSociety = await Society.findOne({ name });
+    if (existingSociety) {
+      return res.status(409).json({ message: 'Society name already exists' });
+    }
+
+    // Optional: check if user is already a member of this society? (not applicable on creation)
+
+    const society = await Society.create({
       name,
       members: [
         {
           user: dbUser._id,
-          role: "admin",
+          role: 'admin',
         },
       ],
-    })
-    res.status(201).json(society);
+    });
+
+    // Populate user details for response (optional but helpful)
+    const populatedSociety = await Society.findById(society._id).populate(
+      'members.user',
+      'name email' // select only needed fields
+    );
+
+    res.status(201).json(populatedSociety);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    // Handle known database errors
+    if (error.code === 11000) {
+      // Duplicate key error (if unique index is set on `name`)
+      return res.status(409).json({ message: 'Society name already exists' });
+    }
+
+    // Log error internally for debugging
+    console.error('Create society error:', error);
+
+    // Send generic message to client
+    res.status(500).json({ message: 'Internal server error' });
   }
 };
 export const createEvent = async (req, res) => {
   try {
     const { title, date, description, societyId } = req.body;
-
     if (!title || !description) {
       return res.status(400).json({ message: "Title and description are required" });
     }
