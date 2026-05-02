@@ -1,30 +1,57 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// 2026 Stable Model ID
+const MODEL_NAME = "gemini-2.5-flash";
 
 export async function generateDescription(title) {
-  // FIX: Changed "gemini-1.5-flash" to "gemini-2.5-flash" or "gemini-pro"
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-  const prompt = `
-    Context: You are an assistant for a 'Society & Event Fund Management' app.
-    Task: Write a professional 4-line event description for: "${title}".
-    
-    Rules:
-    - Keep it under 50 words.
-    - Mention fund transparency or organization if it's a society event.
-    - If it's an individual task, focus on personal expense tracking.
-    
-    Return only the description text.
-  `;
-
   try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
+
+    const prompt = `
+      Context: Assistant for 'Society & Event Fund Management' app.
+      Task: Write a professional 4-line description for: "${title}".
+      
+      Rules:
+      - Society Event: Focus on community transparency & collective funds.
+      - Individual/Group Task: Focus on shared expense tracking and management.
+      - Style: Start with "This tool helps manage..."
+      
+      Return ONLY the 4-line description text.
+    `;
+
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return response.text().trim();
+    return result.response.text().trim();
   } catch (error) {
-    console.error("Gemini Error:", error);
-    // Fallback for your project
-    return `Management and financial tracking for ${title} to ensure transparency and organization.`;
+    console.error("Description API Error:", error);
+    return `An organized system to manage ${title}, ensuring all related funds and expenses are tracked with transparency.`;
+  }
+}
+
+export async function generateEventCategory(title) {
+  try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
+
+    const prompt = `
+      Return ONLY a JSON object for: "${title}".
+      Categories: [Personal, Travel, Health, Tech, Education, Finance, Maintenance, Cultural, Sports, Social, Meeting, Emergency, Other].
+      Format: {"category": "...", "description": "..."}
+    `;
+
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    
+    // Clean potential markdown formatting
+    const cleanJson = responseText.replace(/```json|```/g, "").trim();
+    const data = JSON.parse(cleanJson);
+
+    return {
+      category: data.category || "Other",
+      description: data.description || `Event management for ${title}.`
+    };
+  } catch (error) {
+    console.error("Category API Error:", error);
+    return { category: "Other", description: `Organized tracking for ${title}.` };
   }
 }

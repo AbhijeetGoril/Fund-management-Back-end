@@ -2,6 +2,7 @@
 import User from "../models/User.js";
 import Society from "../models/Society.js";
 import Event from "../models/Event/Event.js";
+import { generateEventCategory } from "../services/geminiService.js";
 
 export const createSociety = async (req, res) => {
   try {
@@ -59,11 +60,11 @@ export const createSociety = async (req, res) => {
 export const createEvent = async (req, res) => {
   try {
     const { title, date, description, societyId } = req.body;
-    if (!title || !description) {
-      return res.status(400).json({ message: "Title and description are required" });
+
+    if (!title) {
+      return res.status(400).json({ message: "Title is required" });
     }
 
-    // logged-in user
     const dbUser = await User.findOne({
       firebaseUid: req.user.uid,
     });
@@ -74,7 +75,6 @@ export const createEvent = async (req, res) => {
 
     let society = null;
 
-    // 👉 only run this if societyId is provided
     if (societyId) {
       society = await Society.findById(societyId);
 
@@ -93,17 +93,21 @@ export const createEvent = async (req, res) => {
       }
     }
 
-    // ✅ create event (with or without society)
+    // 🔥 FIXED
+    const aiData = await generateEventCategory(title);
+
     const event = await Event.create({
       title,
       date,
-      description,
+      description: description || aiData.description,
+      category: aiData.category,
       society: society ? society._id : null,
       createdBy: dbUser._id,
     });
 
     res.status(201).json(event);
   } catch (error) {
+    console.log(error.message);
     res.status(500).json({ message: error.message });
   }
 };
