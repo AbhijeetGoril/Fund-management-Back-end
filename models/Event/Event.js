@@ -13,6 +13,27 @@ const eventSchema = new mongoose.Schema(
       required: true,
     },
 
+    // 🔥 ADDED CATEGORY
+    category: {
+      type: String,
+      enum: [
+        "Personal",
+        "Travel",
+        "Health",
+        "Tech",
+        "Education",
+        "Finance",
+        "Maintenance",
+        "Cultural",
+        "Sports",
+        "Social",
+        "Meeting",
+        "Emergency",
+        "Other",
+      ],
+      default: "Other",
+    },
+
     date: {
       type: Date,
       default: Date.now,
@@ -34,7 +55,7 @@ const eventSchema = new mongoose.Schema(
       required: true,
     },
 
-    // 🔥 NEW (important)
+    // 🔥 EXISTING
     budget: {
       target: {
         type: Number,
