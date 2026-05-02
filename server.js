@@ -6,6 +6,7 @@ import firebaseAuth from "./middleware/firebaseAuth.js";
 import userRoutes from "./routes/userRoutes.js";
 import societyRoutes from "./routes/societyRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import aiRoutes from "./routes/aiRoutes.js"
 import cookieParser from "cookie-parser";
 
 
@@ -29,6 +30,7 @@ app.get("/", (req, res) => {
 app.use("/api/users", userRoutes);
 app.use("/api/societies", societyRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/ai", aiRoutes);
 
 // app.get("/api/protected", firebaseAuth, (req, res) => {
 //   res.json({
