@@ -3,6 +3,7 @@ import User from "../models/User.js";
 import Society from "../models/Society.js";
 import Event from "../models/Event/Event.js";
 import { generateEventCategory } from "../services/geminiService.js";
+import EventMember from "../models/Event/EventMemberSchema.js";
 
 export const createSociety = async (req, res) => {
   try {
@@ -111,3 +112,46 @@ export const createEvent = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+export const getAllMyRelatedEvents=async(req,res)=>{
+  try {
+    const memberships=await EventMember.find({
+      user:req.user.id
+    })
+    const memberEventIds = memberships.map(
+      (member) => member.event.toString()
+    );
+     const events = await Event.find({
+      $or: [
+        { createdBy: req.user.id },
+        { _id: { $in: memberEventIds } },
+      ],
+    })
+      .populate("createdBy", "name email").populate("society", "name").populate({
+        path: "members",
+        populate: {
+          path: "user",
+          select: "name email",
+        },
+      })
+      .sort({ createdAt: -1 });
+    const updatedEvent=events.map(event=>{
+      const myMemberData=event.members.find((member)=>member.user&&member.user._id.toString() === req.user.id)
+      return {
+        ...event.toObject(),
+        isAdmin: myMemberData?.role === "admin",
+      };
+    })
+    res.status(200).json({
+      success: true,
+      total: updatedEvent.length,
+      events:updatedEvent,
+    });
+  } catch (error) {
+    console.log(error.message);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}

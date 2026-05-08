@@ -9,15 +9,29 @@ export async function generateDescription(title) {
     const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
     const prompt = `
-      Context: Assistant for 'Society & Event Fund Management' app.
-      Task: Write a professional 4-line description for: "${title}".
-      
-      Rules:
-      - Society Event: Focus on community transparency & collective funds.
-      - Individual/Group Task: Focus on shared expense tracking and management.
-      - Style: Start with "This tool helps manage..."
-      
-      Return ONLY the 4-line description text.
+      You are an assistant for a Society & Event Fund Management system.
+
+Write a professional event description based on the given title.
+
+Event Title: "${title}"
+
+Instructions:
+- Write exactly 3–4 short lines
+- Use simple and clear language
+- Focus on:
+  • community participation  
+  • event organization  
+  • fund usage and transparency  
+- If the event is society-related → highlight collective effort and shared funds  
+- If general event → focus on planning, purpose, and participation  
+
+Rules:
+- Do NOT start with "This tool helps manage"
+- Do NOT include extra explanation
+- Do NOT repeat the title
+- Keep total length under 40 words
+
+Return ONLY the description text.
     `;
 
     const result = await model.generateContent(prompt);
@@ -41,17 +55,20 @@ export async function generateEventCategory(title) {
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
-    
+
     // Clean potential markdown formatting
     const cleanJson = responseText.replace(/```json|```/g, "").trim();
     const data = JSON.parse(cleanJson);
 
     return {
       category: data.category || "Other",
-      description: data.description || `Event management for ${title}.`
+      description: data.description || `Event management for ${title}.`,
     };
   } catch (error) {
     console.error("Category API Error:", error);
-    return { category: "Other", description: `Organized tracking for ${title}.` };
+    return {
+      category: "Other",
+      description: `Organized tracking for ${title}.`,
+    };
   }
 }

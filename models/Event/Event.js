@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import EventMember from "./EventMemberSchema.js";
 
 const eventSchema = new mongoose.Schema(
   {
@@ -68,8 +69,39 @@ const eventSchema = new mongoose.Schema(
       enum: ["active", "completed"],
       default: "active",
     },
+    members: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "EventMember",
+      },
+    ],
   },
   { timestamps: true }
 );
+
+eventSchema.post("save", async function (doc, next) {
+  try {
+    const exists = await EventMember.findOne({
+      event: doc._id,
+      user: doc.createdBy,
+    });
+
+    if (!exists) {
+      const member = await EventMember.create({
+        event: doc._id,
+        user: doc.createdBy,
+        role: "admin",
+      });
+      // 🔥 add member id into event.members
+      doc.members.push(member._id);
+
+      await doc.save();
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default mongoose.model("Event", eventSchema);
