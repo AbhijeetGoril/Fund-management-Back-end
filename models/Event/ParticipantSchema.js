@@ -1,4 +1,5 @@
 // models/Participant.js
+
 import mongoose from "mongoose";
 
 const participantSchema = new mongoose.Schema(
@@ -9,23 +10,31 @@ const participantSchema = new mongoose.Schema(
       required: true,
     },
 
-    // registered user (optional)
+    // optional because guest may not have account
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      default: null, // 👈 null means NOT registered
+      default: null,
     },
 
-    // guest / snapshot info
+    // snapshot info
     name: {
       type: String,
       required: true,
+      trim: true,
     },
 
     email: {
       type: String,
       required: true,
       lowercase: true,
+      trim: true,
+    },
+
+    phone: {
+      type: String,
+      required: false,
+      default: "",
       trim: true,
     },
 
@@ -45,14 +54,15 @@ const participantSchema = new mongoose.Schema(
       default: "pending",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-// auto update paymentStatus
-participantSchema.pre("save", function (next) {
-  this.paymentStatus =
-    this.amountPaid >= this.amountToPay ? "paid" : "pending";
-  next();
+// Prevent same email joining same event multiple times
+participantSchema.index({ event: 1, email: 1 }, { unique: true });
+
+// Auto update payment status
+participantSchema.pre("save", async function () {
+  this.paymentStatus = this.amountPaid >= this.amountToPay ? "paid" : "pending";
 });
 
 export default mongoose.model("Participant", participantSchema);
