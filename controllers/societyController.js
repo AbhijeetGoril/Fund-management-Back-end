@@ -6,6 +6,7 @@ import EventMember from "../models/Event/EventMemberSchema.js";
 import Participant from "../models/Event/ParticipantSchema.js";
 import cloudinary from "../config/cloudinary.js";
 
+
 export const createSociety = async (req, res) => {
   try {
     const { name } = req.body;
@@ -69,7 +70,7 @@ export const createEvent = async (req, res) => {
       location,
       budget,
     } = req.body;
-
+    
     if (!title) {
       return res.status(400).json({
         message: "Title is required",
@@ -114,6 +115,18 @@ export const createEvent = async (req, res) => {
       }
     }
 
+    let coverPhoto = "";
+    if(req.file){
+      const uploadedImage= await cloudinary.uploader.upload(
+        req.file.path,
+        {
+        folder: "events",
+        }
+      )
+      coverPhoto =
+    uploadedImage.secure_url;
+    }
+
     // AI category + description
     const aiData =
       await generateEventCategory(title);
@@ -127,7 +140,7 @@ export const createEvent = async (req, res) => {
         description || aiData.description,
 
       category: aiData.category,
-
+      
       society: society
         ? society._id
         : null,
@@ -141,6 +154,8 @@ export const createEvent = async (req, res) => {
       budget: {
         target: budget || 0,
       },
+
+      coverPhoto,
     });
 
     res.status(201).json(event);
