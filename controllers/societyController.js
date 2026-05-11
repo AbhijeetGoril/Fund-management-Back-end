@@ -255,3 +255,72 @@ export const addParticipant = async (req, res) => {
     });
   }
 };
+
+export const getSingleEvent =async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    // -----------------------------
+    // CHECK EVENT EXISTS
+    // -----------------------------
+    const event=await Event.findById(eventId).populate("createdBy", "name email")
+      .lean();
+    if(!event){
+      return res.status(404).json({
+        message: "Event not found",
+      });
+    }
+    // -----------------------------
+    // GET EVENT MEMBERS
+    // -----------------------------
+    const members=await EventMember.find({
+      event:eventId
+    }).populate("user", "name email")
+      .lean();
+    
+    // -----------------------------
+    // GET PARTICIPANTS
+    // -----------------------------
+
+    const participants = await Participant.find({
+      event: eventId,
+    })
+      .populate("user", "name email")
+      .lean();
+    
+    const totalAmountToPay=participants.reduce((sum,participant)=>{
+      return sum+participant.amountToPay
+    },0)
+    const totalAmountPaid=participants.reduce((sum,participant)=>{
+      return sum+participant.amountPaid
+    },0)  
+    const totalPendingAmount =
+      totalAmountToPay - totalAmountPaid;
+    
+    // -----------------------------
+    // RESPONSE
+    // -----------------------------
+    return res.status(200).json({
+      success:true,
+      event,
+      members,
+      participants,
+      summary:{
+        totalMembers: members.length,
+        totalParticipants:
+          participants.length,
+        totalAmountToPay,
+
+        totalAmountPaid,
+
+        totalPendingAmount,
+      }
+    })
+  
+  } catch (error) {
+    console.log(error);
+
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
