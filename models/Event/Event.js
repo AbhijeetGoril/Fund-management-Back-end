@@ -75,8 +75,19 @@ const eventSchema = new mongoose.Schema(
         ref: "EventMember",
       },
     ],
+    coverPhoto: {
+      type: String,
+      default: "",
+    },
+
+    photos: [
+      {
+        type: String,
+      },
+    ],
   },
-  { timestamps: true }
+
+  { timestamps: true },
 );
 
 eventSchema.post("save", async function (doc, next) {
