@@ -60,10 +60,19 @@ export const createSociety = async (req, res) => {
 };
 export const createEvent = async (req, res) => {
   try {
-    const { title, date, description, societyId } = req.body;
+    const {
+      title,
+      date,
+      description,
+      societyId,
+      location,
+      budget,
+    } = req.body;
 
     if (!title) {
-      return res.status(400).json({ message: "Title is required" });
+      return res.status(400).json({
+        message: "Title is required",
+      });
     }
 
     const dbUser = await User.findOne({
@@ -71,44 +80,76 @@ export const createEvent = async (req, res) => {
     });
 
     if (!dbUser) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({
+        message: "User not found",
+      });
     }
 
     let society = null;
 
     if (societyId) {
-      society = await Society.findById(societyId);
-
-      if (!society) {
-        return res.status(404).json({ message: "Society not found" });
-      }
-
-      const isAdmin = society.members.some(
-        (m) =>
-          m.user.toString() === dbUser._id.toString() && m.role === "admin",
+      society = await Society.findById(
+        societyId
       );
 
+      if (!society) {
+        return res.status(404).json({
+          message: "Society not found",
+        });
+      }
+
+      const isAdmin =
+        society.members.some(
+          (m) =>
+            m.user.toString() ===
+              dbUser._id.toString() &&
+            m.role === "admin"
+        );
+
       if (!isAdmin) {
-        return res.status(403).json({ message: "Admin access only" });
+        return res.status(403).json({
+          message: "Admin access only",
+        });
       }
     }
 
-    // 🔥 FIXED
-    const aiData = await generateEventCategory(title);
+    // AI category + description
+    const aiData =
+      await generateEventCategory(title);
 
     const event = await Event.create({
-      title,
-      date,
-      description: description || aiData.description,
+      title: title.trim(),
+
+      date: date || Date.now(),
+
+      description:
+        description || aiData.description,
+
       category: aiData.category,
-      society: society ? society._id : null,
+
+      society: society
+        ? society._id
+        : null,
+
       createdBy: dbUser._id,
+
+      // OPTIONAL LOCATION
+      location: location || "",
+
+      // OPTIONAL BUDGET
+      budget: {
+        target: budget || 0,
+      },
     });
 
     res.status(201).json(event);
+
   } catch (error) {
     console.log(error.message);
-    res.status(500).json({ message: error.message });
+
+    res.status(500).json({
+      message: error.message,
+    });
   }
 };
 export const getAllMyRelatedEvents = async (req, res) => {
