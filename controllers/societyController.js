@@ -4,6 +4,7 @@ import Event from "../models/Event/Event.js";
 import { generateEventCategory } from "../services/geminiService.js";
 import EventMember from "../models/Event/EventMemberSchema.js";
 import Participant from "../models/Event/ParticipantSchema.js";
+import cloudinary from "../config/cloudinary.js";
 
 export const createSociety = async (req, res) => {
   try {
