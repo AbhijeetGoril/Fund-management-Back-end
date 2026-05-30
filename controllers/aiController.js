@@ -10,7 +10,7 @@ export const suggestDescription = async (req, res) => {
 
     const description = await generateDescription(title);
 
-    res.json({ description });
+    res.json({ description });f
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
