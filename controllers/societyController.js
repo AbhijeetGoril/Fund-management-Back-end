@@ -1,10 +1,12 @@
 import User from "../models/User.js";
-import Society from "../models/Society.js";
+import Society from "../models/Society/Society.js";
 import Event from "../models/Event/Event.js";
 import { generateEventCategory } from "../services/geminiService.js";
 import EventMember from "../models/Event/EventMemberSchema.js";
 import Participant from "../models/Event/ParticipantSchema.js";
 import cloudinary from "../config/cloudinary.js";
+// controllers/spendController.js
+import Spend from "../models/Event/SpendSchema.js"
 
 
 export const createSociety = async (req, res) => {
@@ -378,6 +380,72 @@ export const getSingleEvent =async (req, res) => {
 
     res.status(500).json({
       message: error.message,
+    });
+  }
+};
+
+
+export const addSpend = async (req, res) => {
+  try {
+    const {
+      event,
+      title,
+      amount,
+      category,
+      paidBy,
+      paidTo,
+      notes,
+      spendDate,
+      receiptNumber,
+      receiptImage,
+    } = req.body;
+
+    // Validation
+    if (!event || !title || !amount || !paidBy) {
+      return res.status(400).json({
+        success: false,
+        message: "Event, title, amount and paidBy are required",
+      });
+    }
+
+    // Check event exists
+    const existingEvent = await Event.findById(event);
+
+    if (!existingEvent) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found",
+      });
+    }
+
+    const spend = await Spend.create({
+      event,
+      title,
+      amount,
+      category,
+      paidBy,
+      paidTo,
+      notes,
+      spendDate,
+      receiptNumber,
+      receiptImage,
+
+      // logged-in user
+      createdBy: req.user._id,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Spend added successfully",
+      data: spend,
+    });
+  } catch (error) {
+    console.error("Add Spend Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to add spend",
+      error: error.message,
     });
   }
 };

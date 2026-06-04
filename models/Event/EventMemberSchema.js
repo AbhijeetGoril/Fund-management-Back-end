@@ -14,7 +14,7 @@ const eventMemberSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-
+    
     role: {
       type: String,
       enum: ["admin", "member"],
