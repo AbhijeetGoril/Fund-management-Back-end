@@ -6,11 +6,9 @@ import EventMember from "../models/Event/EventMemberSchema.js";
 import Participant from "../models/Event/ParticipantSchema.js";
 import cloudinary from "../config/cloudinary.js";
 // controllers/spendController.js
-import Spend from "../models/Event/SpendSchema.js"
-
+import Spend from "../models/Event/SpendSchema.js";
 
 import SocietyMember from "../models/Society/societyMemberSchema.js";
-
 
 export const createSociety = async (req, res) => {
   try {
@@ -55,9 +53,10 @@ export const createSociety = async (req, res) => {
       role: "admin",
     });
 
-    const populatedSociety = await Society.findById(
-      society._id
-    ).populate("createdBy", "name email");
+    const populatedSociety = await Society.findById(society._id).populate(
+      "createdBy",
+      "name email",
+    );
 
     res.status(201).json({
       message: "Society created successfully",
@@ -79,15 +78,8 @@ export const createSociety = async (req, res) => {
 };
 export const createEvent = async (req, res) => {
   try {
-    const {
-      title,
-      date,
-      description,
-      societyId,
-      location,
-      budget,
-    } = req.body;
-    
+    const { title, date, description, societyId, location, budget } = req.body;
+
     if (!title) {
       return res.status(400).json({
         message: "Title is required",
@@ -107,9 +99,7 @@ export const createEvent = async (req, res) => {
     let society = null;
 
     if (societyId) {
-      society = await Society.findById(
-        societyId
-      );
+      society = await Society.findById(societyId);
 
       if (!society) {
         return res.status(404).json({
@@ -117,13 +107,10 @@ export const createEvent = async (req, res) => {
         });
       }
 
-      const isAdmin =
-        society.members.some(
-          (m) =>
-            m.user.toString() ===
-              dbUser._id.toString() &&
-            m.role === "admin"
-        );
+      const isAdmin = society.members.some(
+        (m) =>
+          m.user.toString() === dbUser._id.toString() && m.role === "admin",
+      );
 
       if (!isAdmin) {
         return res.status(403).json({
@@ -133,34 +120,26 @@ export const createEvent = async (req, res) => {
     }
 
     let coverPhoto = "";
-    if(req.file){
-      const uploadedImage= await cloudinary.uploader.upload(
-        req.file.path,
-        {
+    if (req.file) {
+      const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
         folder: "events",
-        }
-      )
-      coverPhoto =
-    uploadedImage.secure_url;
+      });
+      coverPhoto = uploadedImage.secure_url;
     }
 
     // AI category + description
-    const aiData =
-      await generateEventCategory(title);
+    const aiData = await generateEventCategory(title);
 
     const event = await Event.create({
       title: title.trim(),
 
       date: date || Date.now(),
 
-      description:
-        description || aiData.description,
+      description: description || aiData.description,
 
       category: aiData.category,
-      
-      society: society
-        ? society._id
-        : null,
+
+      society: society ? society._id : null,
 
       createdBy: dbUser._id,
 
@@ -176,7 +155,6 @@ export const createEvent = async (req, res) => {
     });
 
     res.status(201).json(event);
-
   } catch (error) {
     console.log(error.message);
 
@@ -330,15 +308,16 @@ export const addParticipant = async (req, res) => {
   }
 };
 
-export const getSingleEvent =async (req, res) => {
+export const getSingleEvent = async (req, res) => {
   try {
     const { eventId } = req.params;
     // -----------------------------
     // CHECK EVENT EXISTS
     // -----------------------------
-    const event=await Event.findById(eventId).populate("createdBy", "name email")
+    const event = await Event.findById(eventId)
+      .populate("createdBy", "name email")
       .lean();
-    if(!event){
+    if (!event) {
       return res.status(404).json({
         message: "Event not found",
       });
@@ -346,11 +325,12 @@ export const getSingleEvent =async (req, res) => {
     // -----------------------------
     // GET EVENT MEMBERS
     // -----------------------------
-    const members=await EventMember.find({
-      event:eventId
-    }).populate("user", "name email")
+    const members = await EventMember.find({
+      event: eventId,
+    })
+      .populate("user", "name email")
       .lean();
-    
+
     // -----------------------------
     // GET PARTICIPANTS
     // -----------------------------
@@ -360,36 +340,33 @@ export const getSingleEvent =async (req, res) => {
     })
       .populate("user", "name email")
       .lean();
-    
-    const totalAmountToPay=participants.reduce((sum,participant)=>{
-      return sum+participant.amountToPay
-    },0)
-    const totalAmountPaid=participants.reduce((sum,participant)=>{
-      return sum+participant.amountPaid
-    },0)  
-    const totalPendingAmount =
-      totalAmountToPay - totalAmountPaid;
-    
+
+    const totalAmountToPay = participants.reduce((sum, participant) => {
+      return sum + participant.amountToPay;
+    }, 0);
+    const totalAmountPaid = participants.reduce((sum, participant) => {
+      return sum + participant.amountPaid;
+    }, 0);
+    const totalPendingAmount = totalAmountToPay - totalAmountPaid;
+
     // -----------------------------
     // RESPONSE
     // -----------------------------
     return res.status(200).json({
-      success:true,
+      success: true,
       event,
       members,
       participants,
-      summary:{
+      summary: {
         totalMembers: members.length,
-        totalParticipants:
-          participants.length,
+        totalParticipants: participants.length,
         totalAmountToPay,
 
         totalAmountPaid,
 
         totalPendingAmount,
-      }
-    })
-  
+      },
+    });
   } catch (error) {
     console.log(error);
 
@@ -398,7 +375,6 @@ export const getSingleEvent =async (req, res) => {
     });
   }
 };
-
 
 export const addSpend = async (req, res) => {
   try {
@@ -412,20 +388,23 @@ export const addSpend = async (req, res) => {
       notes,
       spendDate,
       receiptNumber,
-      receiptImage,
     } = req.body;
-
-    // Validation
     if (!event || !title || !amount || !paidBy) {
       return res.status(400).json({
         success: false,
         message: "Event, title, amount and paidBy are required",
       });
     }
+    const dbUser = await User.findById(req.user.id);
 
-    // Check event exists
+    if (!dbUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+    // Find event
     const existingEvent = await Event.findById(event);
-
     if (!existingEvent) {
       return res.status(404).json({
         success: false,
@@ -433,20 +412,63 @@ export const addSpend = async (req, res) => {
       });
     }
 
+    // =================================
+    // Permission Check
+    // =================================
+
+    if (existingEvent.society) {
+      const societyAdmin = await SocietyMember.findOne({
+        society: existingEvent.society,
+        user: dbUser._id,
+        role: "admin",
+      });
+      if (!societyAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: "Only society admins can add spends",
+        });
+      }
+    } else {
+      // Individual Event
+      console.log("eventId:", existingEvent._id)
+      console.log("user:",dbUser._id)
+      const eventAdmin = await EventMember.findOne({
+        event: existingEvent._id,
+        user: dbUser._id,
+        role: "admin",
+      });
+
+      if (!eventAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: "Only event admins can add spends",
+        });
+      }
+    }
+    let receiptImage = "";
+    if (req.file) {
+      const uploadedImage =await cloudinary.uploader.upload(req.file.path, {
+        folder: "spends",
+      });
+      receiptImage =
+        uploadedImage.secure_url;
+    }
+    // =================================
+    // Create Spend
+    // =================================
+
     const spend = await Spend.create({
       event,
-      title,
-      amount,
-      category,
+      title: title.trim(),
+      amount:Number(amount),
+      category: category || "Other",
       paidBy,
-      paidTo,
-      notes,
-      spendDate,
-      receiptNumber,
+      paidTo: paidTo || "",
+      notes: notes || "",
+      spendDate: spendDate || Date.now(),
+      receiptNumber: receiptNumber || "",
       receiptImage,
-
-      // logged-in user
-      createdBy: req.user._id,
+      createdBy: dbUser._id,
     });
 
     return res.status(201).json({
