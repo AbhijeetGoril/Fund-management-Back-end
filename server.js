@@ -11,6 +11,7 @@ import invitationRoute from "./routes/invitationRoute.js"
 import cookieParser from "cookie-parser";
 
 
+
 dotenv.config();          // 1️⃣ Load env FIRST
 connectDB();              // 2️⃣ Connect DB NEXT
 

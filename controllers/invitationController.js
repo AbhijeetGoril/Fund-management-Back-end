@@ -123,7 +123,7 @@ export const inviteUser = async (req, res) => {
         data: invitation,
       });
     }
-    console.log("email",process.env.EMAIL_USER)
+   
     // New User - Send Email
     await transporter.sendMail({
       from: `"Fund Management" <${process.env.EMAIL_USER}>`,
