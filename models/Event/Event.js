@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import EventMember from "./EventMemberSchema.js";
+import User from "../User.js";
 
 const eventSchema = new mongoose.Schema(
   {
@@ -14,7 +15,6 @@ const eventSchema = new mongoose.Schema(
       required: true,
     },
 
-    // 🔥 ADDED CATEGORY
     category: {
       type: String,
       enum: [
@@ -40,9 +40,7 @@ const eventSchema = new mongoose.Schema(
       default: Date.now,
     },
 
-    location: {
-      type: String, // from your UI (Community Hall)
-    },
+    location: String,
 
     society: {
       type: mongoose.Schema.Types.ObjectId,
@@ -56,7 +54,6 @@ const eventSchema = new mongoose.Schema(
       required: true,
     },
 
-    // 🔥 EXISTING
     budget: {
       target: {
         type: Number,
@@ -69,25 +66,22 @@ const eventSchema = new mongoose.Schema(
       enum: ["active", "completed"],
       default: "active",
     },
+
     members: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "EventMember",
       },
     ],
+
     coverPhoto: {
       type: String,
       default: "",
     },
 
-    photos: [
-      {
-        type: String,
-      },
-    ],
+    photos: [String],
   },
-
-  { timestamps: true },
+  { timestamps: true }
 );
 
 eventSchema.post("save", async function (doc, next) {
@@ -97,16 +91,32 @@ eventSchema.post("save", async function (doc, next) {
       user: doc.createdBy,
     });
 
-    if (!exists) {
-      const member = await EventMember.create({
-        event: doc._id,
-        user: doc.createdBy,
-        role: "admin",
-      });
-      // 🔥 add member id into event.members
-      doc.members.push(member._id);
-      await doc.save();
-    }
+    if (exists) return next();
+
+    const user = await User.findById(doc.createdBy);
+
+    if (!user) return next();
+
+    const member = await EventMember.create({
+      event: doc._id,
+      user: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: "admin",
+      status: "active",
+      addedBy: user._id,
+    });
+
+    // Don't call doc.save() here
+    await mongoose.model("Event").updateOne(
+      { _id: doc._id },
+      {
+        $push: {
+          members: member._id,
+        },
+      }
+    );
 
     next();
   } catch (error) {

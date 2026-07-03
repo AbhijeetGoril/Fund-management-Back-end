@@ -120,7 +120,7 @@ eventMemberSchema.index(
   }
 );
 
-eventMemberSchema.pre("save", function (next) {
+eventMemberSchema.pre("save", function () {
   if (this.amountPaid <= 0) {
     this.paymentStatus = "pending";
   } else if (this.amountPaid < this.amountToPay) {
@@ -128,8 +128,6 @@ eventMemberSchema.pre("save", function (next) {
   } else {
     this.paymentStatus = "paid";
   }
-
-  next();
 });
 
 export default mongoose.model("EventMember", eventMemberSchema);
