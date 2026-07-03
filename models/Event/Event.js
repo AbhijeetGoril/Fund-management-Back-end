@@ -105,7 +105,6 @@ eventSchema.post("save", async function (doc, next) {
       });
       // 🔥 add member id into event.members
       doc.members.push(member._id);
-
       await doc.save();
     }
 

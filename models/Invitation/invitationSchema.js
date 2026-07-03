@@ -63,18 +63,18 @@ const invitationSchema = new mongoose.Schema(
     // Invitation status
     status: {
       type: String,
-      enum: [
-        "pending",
-        "accepted",
-        "declined",
-        "cancelled",
-      ],
+      enum: ["pending", "accepted", "declined", "cancelled"],
       default: "pending",
+    },
+    token: {
+      type: String,
+      required: true,
+      unique: true,
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Indexes
