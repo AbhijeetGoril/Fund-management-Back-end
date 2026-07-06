@@ -119,6 +119,8 @@ eventMemberSchema.index(
   }
 );
 
+
+
 eventMemberSchema.pre("save", function () {
   if (this.amountPaid <= 0) {
     this.paymentStatus = "pending";
