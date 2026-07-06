@@ -8,6 +8,7 @@ import societyRoutes from "./routes/societyRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js"
 import invitationRoute from "./routes/invitationRoute.js"
+import eventRoute from "./routes/eventRoute.js";
 import cookieParser from "cookie-parser";
 
 
@@ -34,6 +35,7 @@ app.use("/api/societies", societyRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/invitations", invitationRoute);
+app.use("/api/events", eventRoute);
 
 // app.get("/api/protected", firebaseAuth, (req, res) => {
 //   res.json({

@@ -1,15 +1,13 @@
-import jwt from "jsonwebtoken";
 import Event from "../models/Event/Event.js";
 import EventMember from "../models/Event/EventMemberSchema.js";
-import Invitation from "../models/Invitation.js";
+import Invitation from "../models/Invitation/invitationSchema.js";
 import User from "../models/User.js";
 // import { sendInvitationEmail } from "../utils/sendInvitationEmail.js";
 
 export const addParticipant = async (req, res) => {
   try {
-    const { eventId } = req.params;
-
     const {
+      eventId,
       name,
       email,
       phone,
@@ -20,7 +18,28 @@ export const addParticipant = async (req, res) => {
     // =====================================================
     // Check Event
     // =====================================================
+    if (!eventId) {
+      return res.status(400).json({
+        success: false,
+        message: "Event ID is required.",
+      });
+    }
+    if (amountToPay < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount cannot be negative.",
+      });
+    }
+    if (email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+      if (!emailRegex.test(email.trim())) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid email address.",
+        });
+      }
+    }
     const event = await Event.findById(eventId);
 
     if (!event) {
@@ -30,13 +49,13 @@ export const addParticipant = async (req, res) => {
       });
     }
 
-    // =====================================================
+    // =================================X====================
     // Only Event Admin Can Add Participants
     // =====================================================
 
     const admin = await EventMember.findOne({
       event: eventId,
-      user: req.user._id,
+      user: req.user.id,
       role: "admin",
     });
 
@@ -72,7 +91,7 @@ export const addParticipant = async (req, res) => {
 
         status: "active",
 
-        addedBy: req.user._id,
+        addedBy: req.user.id,
       });
 
       event.members.push(participant._id);
@@ -95,34 +114,13 @@ export const addParticipant = async (req, res) => {
     const user = await User.findOne({
       email: normalizedEmail,
     });
-
     // Already participant?
-    if (user) {
-      const alreadyMember = await EventMember.findOne({
-        event: event._id,
-        user: user._id,
+    if (user && user._id.equals(req.user.id)) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot add yourself as a participant.",
       });
-
-      if (alreadyMember) {
-        return res.status(409).json({
-          success: false,
-          message: "User is already a participant.",
-        });
-      }
-    } else {
-      const alreadyGuest = await EventMember.findOne({
-        event: event._id,
-        email: normalizedEmail,
-      });
-
-      if (alreadyGuest) {
-        return res.status(409).json({
-          success: false,
-          message: "Participant already exists.",
-        });
-      }
     }
-
     // Pending invitation
     const pendingInvitation = await Invitation.findOne({
       event: event._id,
@@ -137,58 +135,74 @@ export const addParticipant = async (req, res) => {
       });
     }
 
-    // Generate JWT
-    const token = jwt.sign(
-      {
-        email: normalizedEmail,
-        eventId: event._id,
-        type: "event",
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "7d",
+    if (user) {
+      const alreadyMember = await EventMember.findOne({
+        event: event._id,
+        user: user._id,
+      });
+
+      if (alreadyMember) {
+        return res.status(409).json({
+          success: false,
+          message: "User is already a participant.",
+        });
       }
-    );
 
-    // Save invitation
-    const invitation = await Invitation.create({
-      email: normalizedEmail,
+      // Create invitation
+      const invitation = await Invitation.create({
+        email: normalizedEmail,
+        user: user._id,
+        invitedBy: req.user.id,
+        type: "event",
+        event: event._id,
+        amountToPay,
+        message,
+      });
 
-      user: user?._id || null,
+      // TODO: Send invitation email here
 
-      invitedBy: req.user._id,
+      return res.status(201).json({
+        success: true,
+        message: "Invitation sent successfully.",
+        invitation,
+      });
+    } else {
+      const alreadyGuest = await EventMember.findOne({
+        event: event._id,
+        email: normalizedEmail,
+      });
 
-      type: "event",
+      if (alreadyGuest) {
+        return res.status(409).json({
+          success: false,
+          message: "Participant already exists.",
+        });
+      }
+    }
 
+    const participant = await EventMember.create({
       event: event._id,
+      user: null,
+
+      name: name.trim(),
+      phone: phone?.trim() || null,
 
       amountToPay,
 
-      message,
+      role: "participant",
 
-      token,
+      status: "active",
+
+      addedBy: req.user.id,
+
+      email: normalizedEmail,
     });
-
-    // =====================================================
-    // Send Invitation Email
-    // =====================================================
-
-    /*
-    await sendInvitationEmail({
-        email: normalizedEmail,
-        token,
-        eventName: event.title,
-    });
-    */
 
     return res.status(201).json({
       success: true,
-      message: user
-        ? "Invitation sent successfully."
-        : "Invitation sent. User must sign up first.",
-      invitation,
+      message: "The user has been successfully added to the participants.",
+      participant,
     });
-
   } catch (error) {
     console.error(error);
 

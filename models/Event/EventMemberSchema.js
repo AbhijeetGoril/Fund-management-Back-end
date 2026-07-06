@@ -18,7 +18,6 @@ const eventMemberSchema = new mongoose.Schema(
     // Snapshot information
     name: {
       type: String,
-      required: true,
       trim: true,
     },
 
