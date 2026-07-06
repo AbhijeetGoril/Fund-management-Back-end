@@ -1,3 +1,4 @@
+import jwt from "jsonwebtoken";
 import Event from "../models/Event/Event.js";
 import EventMember from "../models/Event/EventMemberSchema.js";
 import Invitation from "../models/Invitation/invitationSchema.js";
@@ -147,6 +148,17 @@ export const addParticipant = async (req, res) => {
           message: "User is already a participant.",
         });
       }
+      const token = jwt.sign(
+  {
+    email: normalizedEmail,
+    eventId: event._id,
+    type: "event",
+  },
+  process.env.JWT_SECRET,
+  {
+    expiresIn: "7d",
+  }
+);
 
       // Create invitation
       const invitation = await Invitation.create({
@@ -157,6 +169,7 @@ export const addParticipant = async (req, res) => {
         event: event._id,
         amountToPay,
         message,
+        token
       });
 
       // TODO: Send invitation email here
