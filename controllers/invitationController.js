@@ -4,13 +4,15 @@ import Event from "../models/Event/Event.js";
 import Society from "../models/Society/Society.js";
 import EventMember from "../models/Event/EventMemberSchema.js";
 import transporter from "../config/mailer.js";
+import jwt from "jsonwebtoken";
 
 export const inviteUser = async (req, res) => {
   try {
     const { email, type, society, event, amountToPay, message } = req.body;
 
     // Validate
-    if (!email || !type) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !type) {
       return res.status(400).json({
         success: false,
         message: "Email and type are required.",
@@ -69,7 +71,7 @@ export const inviteUser = async (req, res) => {
 
     // Existing user
     const existingUser = await User.findOne({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
     });
 
     // Already a member of the event
@@ -89,7 +91,7 @@ export const inviteUser = async (req, res) => {
 
     // Duplicate invitation
     const duplicateInvitation = await Invitation.findOne({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       type,
       society: society || null,
       event: event || null,
@@ -102,10 +104,14 @@ export const inviteUser = async (req, res) => {
         message: "Invitation already sent.",
       });
     }
-
+    const token = jwt.sign(
+            { email: normalizedEmail, eventId: event._id, type: "event" },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
+          );
     // Create invitation
     const invitation = await Invitation.create({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       user: existingUser?._id || null,
       invitedBy: invitedBy._id,
       type,
@@ -113,6 +119,7 @@ export const inviteUser = async (req, res) => {
       event: event || null,
       amountToPay: amountToPay || 0,
       message: message || "",
+      token
     });
 
     // Existing User
@@ -127,7 +134,7 @@ export const inviteUser = async (req, res) => {
     // New User - Send Email
     await transporter.sendMail({
       from: `"Fund Management" <${process.env.EMAIL_USER}>`,
-      to: email,
+      to: normalizedEmail,
       subject: "You're Invited!",
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px">
