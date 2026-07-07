@@ -5,19 +5,20 @@ import Society from "../models/Society/Society.js";
 import EventMember from "../models/Event/EventMemberSchema.js";
 import transporter from "../config/mailer.js";
 import jwt from "jsonwebtoken";
+import { createNotification } from "../utils/createNotification.js";
 
 export const inviteUser = async (req, res) => {
   try {
     const { email, type, society, event, amountToPay, message } = req.body;
 
-    // Validate
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || !type) {
+    if (!email || !type) {
       return res.status(400).json({
         success: false,
         message: "Email and type are required.",
       });
     }
+
+    const normalizedEmail = email.trim().toLowerCase();
 
     if (type === "event" && !event) {
       return res.status(400).json({
@@ -33,9 +34,7 @@ export const inviteUser = async (req, res) => {
       });
     }
 
-    // Logged in user
     const invitedBy = await User.findById(req.user.id);
-
     if (!invitedBy) {
       return res.status(404).json({
         success: false,
@@ -46,10 +45,8 @@ export const inviteUser = async (req, res) => {
     let existingEvent = null;
     let existingSociety = null;
 
-    // Check target
     if (type === "event") {
       existingEvent = await Event.findById(event);
-
       if (!existingEvent) {
         return res.status(404).json({
           success: false,
@@ -60,7 +57,6 @@ export const inviteUser = async (req, res) => {
 
     if (type === "society") {
       existingSociety = await Society.findById(society);
-
       if (!existingSociety) {
         return res.status(404).json({
           success: false,
@@ -69,12 +65,8 @@ export const inviteUser = async (req, res) => {
       }
     }
 
-    // Existing user
-    const existingUser = await User.findOne({
-      email: normalizedEmail,
-    });
+    const existingUser = await User.findOne({ email: normalizedEmail });
 
-    // Already a member of the event
     if (type === "event" && existingUser) {
       const existingEventMember = await EventMember.findOne({
         event,
@@ -89,7 +81,6 @@ export const inviteUser = async (req, res) => {
       }
     }
 
-    // Duplicate invitation
     const duplicateInvitation = await Invitation.findOne({
       email: normalizedEmail,
       type,
@@ -104,12 +95,20 @@ export const inviteUser = async (req, res) => {
         message: "Invitation already sent.",
       });
     }
-    const token = jwt.sign(
-            { email: normalizedEmail, eventId: event._id, type: "event" },
-            process.env.JWT_SECRET,
-            { expiresIn: "7d" }
-          );
-    // Create invitation
+
+    // FIX: only sign a token for event invites, and use the fetched
+    // document's _id (existingEvent) — `event` here is just the raw ID
+    // string from req.body, so `event._id` would be undefined and this
+    // was also crashing for society invites where `event` doesn't exist.
+    let token = null;
+    if (type === "event") {
+      token = jwt.sign(
+        { email: normalizedEmail, eventId: existingEvent._id, type: "event" },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+    }
+
     const invitation = await Invitation.create({
       email: normalizedEmail,
       user: existingUser?._id || null,
@@ -119,19 +118,38 @@ export const inviteUser = async (req, res) => {
       event: event || null,
       amountToPay: amountToPay || 0,
       message: message || "",
-      token
+      token,
     });
 
-    // Existing User
+    // Existing User -> in-app notification, no email needed
     if (existingUser) {
+      await createNotification({
+        recipient: existingUser._id,
+        sender: invitedBy._id,
+        type: "invitation_received",
+        title:
+          type === "event" ? "New Event Invitation" : "New Society Invitation",
+        message:
+          type === "event"
+            ? `${invitedBy.name} invited you to join "${existingEvent.title}".`
+            : `${invitedBy.name} invited you to join "${existingSociety.name}".`,
+        relatedEvent: type === "event" ? existingEvent._id : null,
+        relatedSociety: type === "society" ? existingSociety._id : null,
+        relatedInvitation: invitation._id,
+        link:
+          type === "event"
+            ? `/events/${existingEvent._id}`
+            : `/societies/${existingSociety._id}`,
+      });
+
       return res.status(201).json({
         success: true,
         message: "Invitation sent successfully.",
         data: invitation,
       });
     }
-   
-    // New User - Send Email
+
+    // New User - Send Email (no account yet, so no in-app notification is possible)
     await transporter.sendMail({
       from: `"Fund Management" <${process.env.EMAIL_USER}>`,
       to: normalizedEmail,
@@ -156,21 +174,13 @@ export const inviteUser = async (req, res) => {
               : `<p><strong>Society:</strong> ${existingSociety.name}</p>`
           }
 
-          ${
-            message
-              ? `<p><strong>Message:</strong> ${message}</p>`
-              : ""
-          }
+          ${message ? `<p><strong>Message:</strong> ${message}</p>` : ""}
 
-          ${
-            amountToPay > 0
-              ? `<p><strong>Amount:</strong> ₹${amountToPay}</p>`
-              : ""
-          }
+          ${amountToPay > 0 ? `<p><strong>Amount:</strong> ₹${amountToPay}</p>` : ""}
 
           <br>
 
-          <a
+          
             href="${process.env.FRONTEND_URL}/signup"
             style="
               display:inline-block;
