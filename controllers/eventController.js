@@ -3,6 +3,32 @@ import Event from "../models/Event/Event.js";
 import EventMember from "../models/Event/EventMemberSchema.js";
 import Invitation from "../models/Invitation/invitationSchema.js";
 import User from "../models/User.js";
+import { createNotification } from "../utils/createNotification.js";
+
+// Helper: notify all existing event members (with real accounts) that
+// someone new was added. Skips the admin who just performed the action.
+const notifyExistingMembers = async ({ event, newParticipant, actingAdminId }) => {
+  const existingMembers = await EventMember.find({
+    event: event._id,
+    user: { $ne: null }, // only members who have real accounts
+  });
+
+  await Promise.all(
+    existingMembers
+      .filter((m) => m.user.toString() !== actingAdminId.toString())
+      .map((m) =>
+        createNotification({
+          recipient: m.user,
+          sender: actingAdminId,
+          type: "participant_added",
+          title: "New Participant Joined",
+          message: `${newParticipant.name} was added to "${event.title}".`,
+          relatedEvent: event._id,
+          link: `/events/${event._id}`,
+        })
+      )
+  );
+};
 
 export const addParticipant = async (req, res) => {
   try {
@@ -64,6 +90,13 @@ export const addParticipant = async (req, res) => {
       event.members.push(participant._id);
       await event.save();
 
+      // Notify existing members that someone new joined
+      await notifyExistingMembers({
+        event,
+        newParticipant: participant,
+        actingAdminId: req.user.id,
+      });
+
       return res.status(201).json({
         success: true,
         message: "Participant added successfully.",
@@ -115,7 +148,22 @@ export const addParticipant = async (req, res) => {
         token,
       });
 
-      // TODO: Send invitation email here
+      // Notify the invited user directly (they'll accept/decline later)
+      await createNotification({
+        recipient: user._id,
+        sender: req.user.id,
+        type: "invitation_received",
+        title: "New Event Invitation",
+        message: `You've been invited to join "${event.title}".`,
+        relatedEvent: event._id,
+        relatedInvitation: invitation._id,
+        link: `/invitations/${invitation._id}`,
+      });
+
+      // NOTE: do NOT notify existing members here — this person hasn't
+      // actually joined yet, only been invited. The "participant_added"
+      // notification to existing members belongs in acceptInvitation,
+      // once they actually accept and become an EventMember.
 
       return res.status(201).json({
         success: true,
@@ -124,7 +172,7 @@ export const addParticipant = async (req, res) => {
       });
     }
 
-    // Case B: no account yet -> "online guest" participant, added directly (fixed: name check + members.push)
+    // Case B: no account yet -> "online guest" participant, added directly
     if (!name?.trim()) {
       return res.status(400).json({ success: false, message: "Name is required." });
     }
@@ -146,8 +194,15 @@ export const addParticipant = async (req, res) => {
       email: normalizedEmail,
     });
 
-    event.members.push(participant._id); // was missing before
+    event.members.push(participant._id);
     await event.save();
+
+    // Notify existing members that someone new joined
+    await notifyExistingMembers({
+      event,
+      newParticipant: participant,
+      actingAdminId: req.user.id,
+    });
 
     return res.status(201).json({
       success: true,
