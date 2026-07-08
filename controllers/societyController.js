@@ -211,19 +211,23 @@ export const getAllMyRelatedEvents = async (req, res) => {
 export const getSingleEvent = async (req, res) => {
   try {
     const { eventId } = req.params;
+
     // -----------------------------
     // CHECK EVENT EXISTS
     // -----------------------------
     const event = await Event.findById(eventId)
       .populate("createdBy", "name email")
       .lean();
+
     if (!event) {
       return res.status(404).json({
+        success: false,
         message: "Event not found",
       });
     }
+
     // -----------------------------
-    // GET EVENT MEMBERS
+    // GET ALL EVENT MEMBERS (no status filter — full history included)
     // -----------------------------
     const members = await EventMember.find({
       event: eventId,
@@ -231,22 +235,21 @@ export const getSingleEvent = async (req, res) => {
       .populate("user", "name email")
       .lean();
 
-    // -----------------------------
-    // GET PARTICIPANTS
-    // -----------------------------
+    // "Participants" for financial totals = anyone with a payment
+    // obligation, regardless of role — an admin can also owe money.
+    const payingMembers = members.filter((m) => m.amountToPay > 0);
 
-    const participants = await Participant.find({
-      event: eventId,
-    })
-      .populate("user", "name email")
-      .lean();
+    // "Participants" for the members-list display = role-based
+    const participantsByRole = members.filter((m) => m.role === "participant");
 
-    const totalAmountToPay = participants.reduce((sum, participant) => {
-      return sum + participant.amountToPay;
-    }, 0);
-    const totalAmountPaid = participants.reduce((sum, participant) => {
-      return sum + participant.amountPaid;
-    }, 0);
+    const totalAmountToPay = payingMembers.reduce(
+      (sum, m) => sum + (m.amountToPay || 0),
+      0
+    );
+    const totalAmountPaid = payingMembers.reduce(
+      (sum, m) => sum + (m.amountPaid || 0),
+      0
+    );
     const totalPendingAmount = totalAmountToPay - totalAmountPaid;
 
     // -----------------------------
@@ -256,21 +259,21 @@ export const getSingleEvent = async (req, res) => {
       success: true,
       event,
       members,
-      participants,
+      participants: participantsByRole,
       summary: {
         totalMembers: members.length,
-        totalParticipants: participants.length,
+        totalParticipants: participantsByRole.length,
+        totalPayingMembers: payingMembers.length,
         totalAmountToPay,
-
         totalAmountPaid,
-
         totalPendingAmount,
       },
     });
   } catch (error) {
     console.log(error);
 
-    res.status(500).json({
+    return res.status(500).json({
+      success: false,
       message: error.message,
     });
   }
