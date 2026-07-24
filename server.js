@@ -10,7 +10,7 @@ import aiRoutes from "./routes/aiRoutes.js"
 import invitationRoute from "./routes/invitationRoute.js"
 import eventRoute from "./routes/eventRoute.js";
 import cookieParser from "cookie-parser";
-
+import notificationRoutes from "./routes/notificationRoutes.js";
 
 
 dotenv.config();          // 1️⃣ Load env FIRST
@@ -36,7 +36,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/invitations", invitationRoute);
 app.use("/api/events", eventRoute);
-
+app.use("/api/notification", notificationRoutes);
 // app.get("/api/protected", firebaseAuth, (req, res) => {
 //   res.json({
 //     message: "User verified by Firebase ✅",

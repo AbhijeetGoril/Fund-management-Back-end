@@ -226,3 +226,111 @@ export const inviteUser = async (req, res) => {
     });
   }
 };
+
+
+export const acceptInvitation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const invitation = await Invitation.findById(id)
+      .populate("event")
+      .populate("society")
+      .populate("invitedBy");
+
+    if (!invitation) {
+      return res.status(404).json({
+        success: false,
+        message: "Invitation not found.",
+      });
+    }
+
+    if (invitation.status !== "pending") {
+      return res.status(409).json({
+        success: false,
+        message: `Invitation already ${invitation.status}.`,
+      });
+    }
+
+    const currentUser = await User.findById(req.user.id);
+    if (!currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    // Ownership check — only the invited person can accept it
+    const isOwner =
+      (invitation.user && invitation.user.toString() === currentUser._id.toString()) ||
+      invitation.email === currentUser.email.toLowerCase();
+
+    if (!isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to accept this invitation.",
+      });
+    }
+
+    let newParticipant = null;
+
+    // Event-type invitation -> create the actual EventMember
+    if (invitation.type === "event") {
+      const alreadyMember = await EventMember.findOne({
+        event: invitation.event._id,
+        user: currentUser._id,
+      });
+
+      if (!alreadyMember) {
+        newParticipant = await EventMember.create({
+          event: invitation.event._id,
+          user: currentUser._id,
+          name: currentUser.name,
+          email: currentUser.email,
+          amountToPay: invitation.amountToPay || 0,
+          role: "participant",
+          status: "active",
+          addedBy: invitation.invitedBy._id,
+          invitedBy: invitation.invitedBy._id,
+        });
+
+        await Event.findByIdAndUpdate(invitation.event._id, {
+          $push: { members: newParticipant._id },
+        });
+      } else {
+        newParticipant = alreadyMember;
+      }
+    }
+
+    invitation.status = "accepted";
+    invitation.user = invitation.user || currentUser._id;
+    await invitation.save();
+
+    // Notify the person who sent the invite
+    await createNotification({
+      recipient: invitation.invitedBy._id,
+      sender: currentUser._id,
+      type: "invitation_accepted",
+      title: "Invitation Accepted",
+      message: `${currentUser.name} accepted your invitation${
+        invitation.event ? ` to "${invitation.event.title}"` : ""
+      }.`,
+      relatedEvent: invitation.event?._id || null,
+      relatedSociety: invitation.society?._id || null,
+      relatedInvitation: invitation._id,
+      link: invitation.event ? `/events/${invitation.event._id}` : null,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Invitation accepted.",
+      invitation,
+      participant: newParticipant,
+    });
+  } catch (error) {
+    console.error("Accept Invitation Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
