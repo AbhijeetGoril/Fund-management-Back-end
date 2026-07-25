@@ -1,8 +1,9 @@
 import express from "express"
-import {acceptInvitation, inviteUser, rejectInvitation} from "../controllers/invitationController.js"
+import {acceptInvitation, inviteUser, rejectInvitation,cancelInvitation} from "../controllers/invitationController.js"
 import { authMiddleware } from "../middleware/authMiddleware.js";
 const router=express.Router();
 router.post("/invite", authMiddleware, inviteUser);
-router.post("/:id/accept", authMiddleware, acceptInvitation);
-router.post("/:id/reject", authMiddleware, rejectInvitation);
+router.patch("/:id/accept", authMiddleware, acceptInvitation);
+router.patch("/:id/reject", authMiddleware, rejectInvitation);
+router.patch("/:id/cancel", authMiddleware, cancelInvitation );
 export default router;

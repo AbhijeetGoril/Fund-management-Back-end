@@ -439,3 +439,53 @@ export const rejectInvitation = async (req, res) => {
     });
   }
 };
+
+// =====================================================
+// PATCH /api/invitations/:id/cancel
+// Only the admin who SENT the invitation can cancel it,
+// and only while it's still pending.
+// =====================================================
+export const cancelInvitation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const invitation = await Invitation.findById(id).populate("invitedBy");
+
+    if (!invitation) {
+      return res.status(404).json({
+        success: false,
+        message: "Invitation not found.",
+      });
+    }
+
+    // Only the person who SENT it can cancel it
+    if (invitation.invitedBy._id.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to cancel this invitation.",
+      });
+    }
+
+    if (invitation.status !== "pending") {
+      return res.status(409).json({
+        success: false,
+        message: `Cannot cancel — invitation already ${invitation.status}.`,
+      });
+    }
+
+    invitation.status = "cancelled";
+    await invitation.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Invitation cancelled successfully.",
+      invitation,
+    });
+  } catch (error) {
+    console.error("Cancel Invitation Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
