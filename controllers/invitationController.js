@@ -291,7 +291,7 @@ export const acceptInvitation = async (req, res) => {
           name: currentUser.name,
           email: currentUser.email,
           amountToPay: invitation.amountToPay || 0,
-          role: "participant",
+          role: "member",
           status: "active",
           addedBy: invitation.invitedBy._id,
           invitedBy: invitation.invitedBy._id,
