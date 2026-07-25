@@ -228,6 +228,10 @@ export const inviteUser = async (req, res) => {
 };
 
 
+
+// =====================================================
+// PATCH /api/invitations/:id/accept
+// =====================================================
 export const acceptInvitation = async (req, res) => {
   try {
     const { id } = req.params;
@@ -319,6 +323,30 @@ export const acceptInvitation = async (req, res) => {
       relatedInvitation: invitation._id,
       link: invitation.event ? `/events/${invitation.event._id}` : null,
     });
+
+    // Notify all OTHER existing event members that someone new joined
+    if (invitation.type === "event" && newParticipant) {
+      const existingMembers = await EventMember.find({
+        event: invitation.event._id,
+        user: { $ne: null },
+      });
+
+      await Promise.all(
+        existingMembers
+          .filter((m) => m.user.toString() !== currentUser._id.toString())
+          .map((m) =>
+            createNotification({
+              recipient: m.user,
+              sender: currentUser._id,
+              type: "participant_added",
+              title: "New Participant Joined",
+              message: `${currentUser.name} joined "${invitation.event.title}".`,
+              relatedEvent: invitation.event._id,
+              link: `/events/${invitation.event._id}`,
+            })
+          )
+      );
+    }
 
     return res.status(200).json({
       success: true,
