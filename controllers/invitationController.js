@@ -362,3 +362,80 @@ export const acceptInvitation = async (req, res) => {
     });
   }
 };
+
+
+// =====================================================
+// PATCH /api/invitations/:id/reject
+// =====================================================
+export const rejectInvitation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const invitation = await Invitation.findById(id)
+      .populate("event")
+      .populate("society")
+      .populate("invitedBy");
+
+    if (!invitation) {
+      return res.status(404).json({
+        success: false,
+        message: "Invitation not found.",
+      });
+    }
+
+    if (invitation.status !== "pending") {
+      return res.status(409).json({
+        success: false,
+        message: `Invitation already ${invitation.status}.`,
+      });
+    }
+
+    const currentUser = await User.findById(req.user.id);
+    if (!currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    const isOwner =
+      (invitation.user && invitation.user.toString() === currentUser._id.toString()) ||
+      invitation.email === currentUser.email.toLowerCase();
+
+    if (!isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to reject this invitation.",
+      });
+    }
+
+    invitation.status = "rejected";
+    await invitation.save();
+
+    // Notify the sender that it was rejected
+    await createNotification({
+      recipient: invitation.invitedBy._id,
+      sender: currentUser._id,
+      type: "invitation_rejected",
+      title: "Invitation Rejected",
+      message: `${currentUser.name} rejected your invitation${
+        invitation.event ? ` to "${invitation.event.title}"` : ""
+      }.`,
+      relatedEvent: invitation.event?._id || null,
+      relatedSociety: invitation.society?._id || null,
+      relatedInvitation: invitation._id,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Invitation rejected.",
+      invitation,
+    });
+  } catch (error) {
+    console.error("Reject Invitation Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
