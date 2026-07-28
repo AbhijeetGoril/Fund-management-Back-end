@@ -64,3 +64,22 @@ export const markAsRead = async (req, res) => {
     });
   }
 };
+export const markAllAsRead = async (req, res) => {
+  try {
+    await notificationSchema.updateMany(
+      { recipient: req.user.id, isRead: false },
+      { isRead: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "All notifications marked as read.",
+    });
+  } catch (error) {
+    console.error("Mark All As Read Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
