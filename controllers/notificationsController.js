@@ -11,6 +11,7 @@ export const getNotifications = async (req, res) => {
       .populate("sender", "name email")
       .populate("relatedEvent", "title")
       .populate("relatedSociety", "name")
+      .populate("relatedInvitation", "status") 
       .sort({ createdAt: -1 })
       .limit(100);
 
