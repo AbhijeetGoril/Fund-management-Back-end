@@ -1,17 +1,18 @@
 import notificationSchema from "../models/Notification/notificationSchema.js";
 
+// =====================================================
+// GET /api/notification
+// Returns ALL notifications for the logged-in user.
+// Frontend filters read/unread and type locally.
+// =====================================================
 export const getNotifications = async (req, res) => {
   try {
-    const { unreadOnly } = req.query;
-
-    const filter = { recipient: req.user.id };
-    if (unreadOnly === "true") filter.isRead = false;
-
-    const notifications = await notificationSchema.find(filter)
+    const notifications = await notificationSchema
+      .find({ recipient: req.user.id })
       .populate("sender", "name email")
       .populate("relatedEvent", "title")
       .populate("relatedSociety", "name")
-      .populate("relatedInvitation", "status") 
+      .populate("relatedInvitation", "status")
       .sort({ createdAt: -1 })
       .limit(100);
 
