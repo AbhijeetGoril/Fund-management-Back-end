@@ -4,6 +4,7 @@ import transporter from "../config/mailer.js";
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 import admin from "../config/firebase.js";
+import { linkPendingInvitations } from "../utils/linkPendingInvitations.js"; // ADDED
 
 export const sendOtp = async (req, res) => {
   try {
@@ -11,7 +12,6 @@ export const sendOtp = async (req, res) => {
     if (!email) {
       return res.status(400).json({ message: "Email is required" });
     }
-    // 🔍 check if user already exists & verified
     const existingUser = await User.findOne({ email });
 
     if (existingUser && existingUser.emailVerified) {
@@ -60,22 +60,18 @@ export const verifyOtp = async (req, res) => {
       return res.status(400).json({ message: "OTP not found or expired" });
     }
 
-    // ⏰ Check expiry
     if (otpRecord.expiresAt < new Date()) {
       await Otp.deleteOne({ email });
       return res.status(400).json({ message: "OTP expired" });
     }
 
-    // 🔍 Validate OTP
     const isValidOtp = await bcrypt.compare(otp, otpRecord.otpHash);
     if (!isValidOtp) {
       return res.status(400).json({ message: "Invalid OTP" });
     }
 
-    // ✅ OTP verified → remove record
     await Otp.deleteOne({ email });
 
-    // 🔐 Short-lived signup token
     const signupToken = jwt.sign(
       {
         email,
@@ -94,12 +90,8 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
-
-
-
 export const setPassword = async (req, res) => {
   try {
-    // 🔐 Check signup token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "Signup token required" });
@@ -113,7 +105,7 @@ export const setPassword = async (req, res) => {
     }
 
     const { password, name = "" } = req.body;
-    const email = decoded.email; // ✅ email ONLY from token
+    const email = decoded.email;
 
     if (!password || password.length < 6) {
       return res
@@ -121,13 +113,11 @@ export const setPassword = async (req, res) => {
         .json({ message: "Password must be at least 6 characters" });
     }
 
-    // 🚫 Prevent duplicate users
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // 🔐 Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
@@ -137,7 +127,10 @@ export const setPassword = async (req, res) => {
       emailVerified: true,
     });
 
-    // 🍪 Login cookie
+    // ADDED: link any invitations that were sent to this email
+    // before they had an account, and notify them now
+    await linkPendingInvitations(user);
+
     const loginToken = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET,
@@ -165,14 +158,12 @@ export const setPassword = async (req, res) => {
 
 export const googleAuth = async (req, res) => {
   try {
-    // 1️⃣ Get Authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "No token provided" });
     }
     const token = authHeader.split(" ")[1];
 
-    // 2️⃣ Verify Firebase ID token
     const decoded = await admin.auth().verifyIdToken(token);
 
     const { email, name } = decoded;
@@ -181,26 +172,34 @@ export const googleAuth = async (req, res) => {
       return res.status(400).json({ message: "Email not found from Google" });
     }
 
-    // 3️⃣ Find or create user in MongoDB
     let user = await User.findOne({ email });
+    let isNewUser = false;
 
     if (!user) {
       user = await User.create({
         email,
         name,
-        emailVerified: true, // Google emails are already verified
+        emailVerified: true,
       });
+      isNewUser = true;
     }
+
+    // ADDED: only link invitations for a genuinely NEW account —
+    // not on every subsequent Google login for an existing user
+    if (isNewUser) {
+      await linkPendingInvitations(user);
+    }
+
     const loginToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
 
     res
       .cookie("authToken", loginToken, {
-        httpOnly: true, // 🔐 cannot be accessed by JS
-        secure: process.env.NODE_ENV === "production", // https only in prod
-        sameSite: "strict", // CSRF protection
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       })
       .json({
         message: "Google signup/login successful",
@@ -214,7 +213,6 @@ export const googleAuth = async (req, res) => {
 export const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
-    console.log(req.user.id)
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -240,10 +238,10 @@ export const logout = (req, res) => {
   });
 };
 
-export const login=async(req,res)=>{
+export const login = async (req, res) => {
   try {
-    const{email,password}=req.body
-    if(!email || !password){
+    const { email, password } = req.body;
+    if (!email || !password) {
       return res.status(400).json({ message: "Email and password required" });
     }
     const user = await User.findOne({ email });
@@ -254,7 +252,7 @@ export const login=async(req,res)=>{
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-    const token=jwt.sign({id:user._id},process.env.JWT_SECRET, { expiresIn: "7d" })
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
     res.cookie("authToken", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -274,4 +272,4 @@ export const login=async(req,res)=>{
     console.error(error);
     res.status(500).json({ message: "Server error" });
   }
-}
+};
