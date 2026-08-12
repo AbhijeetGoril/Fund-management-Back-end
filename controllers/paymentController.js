@@ -9,7 +9,7 @@ import { createNotification } from "../utils/createNotification.js";
 export const recordPayment = async (req, res) => {
   try {
     const { eventId, memberId } = req.params;
-    const { amountPaid } = req.body;
+    const { amountPaid } = req.body || {};
 
     if (amountPaid === undefined || amountPaid === null) {
       return res.status(400).json({
@@ -61,12 +61,12 @@ export const recordPayment = async (req, res) => {
     member.amountPaid = newTotal;
     await member.save(); // triggers the schema's pre("save") hook to recalculate paymentStatus
 
-    // Notify the member their payment was recorded (only if they have an account)
+    // Notify the member whose payment was recorded (only if they have an account)
     if (member.user) {
       await createNotification({
         recipient: member.user,
         sender: req.user.id,
-        type: "donation_received", // reusing existing enum value — see note below
+        type: "donation_received",
         title: "Payment Recorded",
         message: `A payment of ₹${amount.toLocaleString()} has been recorded for you.${
           member.paymentStatus === "paid" ? " You're fully paid up!" : ""
@@ -75,6 +75,34 @@ export const recordPayment = async (req, res) => {
         link: `/events/${eventId}`,
       });
     }
+
+    // Notify EVERYONE ELSE in the event (including the acting admin,
+    // if they're not the payer) that a payment came in — only the
+    // payer is excluded, since they already got their own notification.
+    const payerName = member.name;
+    const otherMembers = await EventMember.find({
+      event: eventId,
+      user: { $ne: null }, // only members with real accounts
+    });
+
+    await Promise.all(
+      otherMembers
+        .filter((m) => {
+          const isThePayerThemself = member.user && m.user.toString() === member.user.toString();
+          return !isThePayerThemself;
+        })
+        .map((m) =>
+          createNotification({
+            recipient: m.user,
+            sender: req.user.id,
+            type: "donation_received",
+            title: "Payment Received",
+            message: `${payerName} paid ₹${amount.toLocaleString()} towards the event fund.`,
+            relatedEvent: eventId,
+            link: `/events/${eventId}`,
+          })
+        )
+    );
 
     return res.status(200).json({
       success: true,
