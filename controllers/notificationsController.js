@@ -1,5 +1,5 @@
 import notificationSchema from "../models/Notification/notificationSchema.js";
-
+import User from "../models/User.js";
 // =====================================================
 // GET /api/notification
 // Returns ALL notifications for the logged-in user.
@@ -7,8 +7,21 @@ import notificationSchema from "../models/Notification/notificationSchema.js";
 // =====================================================
 export const getNotifications = async (req, res) => {
   try {
+    // Step 1: find the logged-in user
+    const currentUser = await User.findById(req.user.id);
+    if (!currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    // Step 2: grab their email
+    const userEmail = currentUser.email;
+
+    // Step 3: use it — e.g. search notifications belonging to them
     const notifications = await notificationSchema
-      .find({ recipient: req.user.id })
+      .find({ recipient: currentUser._id })
       .populate("sender", "name email")
       .populate("relatedEvent", "title")
       .populate("relatedSociety", "name")
@@ -18,6 +31,7 @@ export const getNotifications = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      email: userEmail,
       count: notifications.length,
       notifications,
     });
