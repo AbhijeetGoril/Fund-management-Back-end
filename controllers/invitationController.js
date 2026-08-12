@@ -181,7 +181,7 @@ export const inviteUser = async (req, res) => {
           <br>
 
           
-            href="${process.env.FRONTEND_URL}/signup"
+            href="${process.env.FRONTEND_URL}signup"
             style="
               display:inline-block;
               padding:12px 24px;
