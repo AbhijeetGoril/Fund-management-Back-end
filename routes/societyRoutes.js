@@ -1,6 +1,6 @@
 import express from "express"
 import firebaseAuth from "../middleware/firebaseAuth.js"
-import { createSociety,createEvent, getAllMyRelatedEvents, getSingleEvent, addSpend, updateSpend, deleteSpend, getEventSpends } from "../controllers/societyController.js"
+import { createSociety,createEvent, getAllMyRelatedEvents, getSingleEvent } from "../controllers/societyController.js"
 import { authMiddleware } from "../middleware/authMiddleware.js"
 import upload from "../middleware/upload.js"
 const router=express.Router()
@@ -14,14 +14,4 @@ router.get(
   getSingleEvent
 );
 
-// Add Spend
-router.post(
-  "/events/spends/addSpend",
-  authMiddleware,
-  upload.single("receiptImage"),
-  addSpend
-);
-router.put("/events/spend/:spendId", authMiddleware, upload.single("receiptImage"), updateSpend);
-router.delete("/events/spend/:spendId", authMiddleware, deleteSpend);
-router.get("/events/:eventId/spends", authMiddleware, getEventSpends);
 export default router

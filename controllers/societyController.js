@@ -281,326 +281,326 @@ export const getSingleEvent = async (req, res) => {
 
 
 
-export const addSpend = async (req, res) => {
-  try {
-    const {
-      event,
-      title,
-      amount,
-      category,
-      paidBy,
-      paidTo,
-      notes,
-      spendDate,
-      receiptNumber,
-    } = req.body;
-    if (!event || !title || !amount || !paidBy) {
-      return res.status(400).json({
-        success: false,
-        message: "Event, title, amount and paidBy are required",
-      });
-    }
-    const dbUser = await User.findById(req.user.id);
+// export const addSpend = async (req, res) => {
+//   try {
+//     const {
+//       event,
+//       title,
+//       amount,
+//       category,
+//       paidBy,
+//       paidTo,
+//       notes,
+//       spendDate,
+//       receiptNumber,
+//     } = req.body;
+//     if (!event || !title || !amount || !paidBy) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Event, title, amount and paidBy are required",
+//       });
+//     }
+//     const dbUser = await User.findById(req.user.id);
 
-    if (!dbUser) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-    // Find event
-    const existingEvent = await Event.findById(event);
-    if (!existingEvent) {
-      return res.status(404).json({
-        success: false,
-        message: "Event not found",
-      });
-    }
+//     if (!dbUser) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User not found",
+//       });
+//     }
+//     // Find event
+//     const existingEvent = await Event.findById(event);
+//     if (!existingEvent) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Event not found",
+//       });
+//     }
 
-    // =================================
-    // Permission Check
-    // =================================
+//     // =================================
+//     // Permission Check
+//     // =================================
 
-    if (existingEvent.society) {
-      const societyAdmin = await SocietyMember.findOne({
-        society: existingEvent.society,
-        user: dbUser._id,
-        role: "admin",
-      });
-      if (!societyAdmin) {
-        return res.status(403).json({
-          success: false,
-          message: "Only society admins can add spends",
-        });
-      }
-    } else {
-      // Individual Event
-      console.log("eventId:", existingEvent._id)
-      console.log("user:",dbUser._id)
-      const eventAdmin = await EventMember.findOne({
-        event: existingEvent._id,
-        user: dbUser._id,
-        role: "admin",
-      });
+//     if (existingEvent.society) {
+//       const societyAdmin = await SocietyMember.findOne({
+//         society: existingEvent.society,
+//         user: dbUser._id,
+//         role: "admin",
+//       });
+//       if (!societyAdmin) {
+//         return res.status(403).json({
+//           success: false,
+//           message: "Only society admins can add spends",
+//         });
+//       }
+//     } else {
+//       // Individual Event
+//       console.log("eventId:", existingEvent._id)
+//       console.log("user:",dbUser._id)
+//       const eventAdmin = await EventMember.findOne({
+//         event: existingEvent._id,
+//         user: dbUser._id,
+//         role: "admin",
+//       });
 
-      if (!eventAdmin) {
-        return res.status(403).json({
-          success: false,
-          message: "Only event admins can add spends",
-        });
-      }
-    }
-    let receiptImage = "";
-    if (req.file) {
-      const uploadedImage =await cloudinary.uploader.upload(req.file.path, {
-        folder: "spends",
-      });
-      receiptImage =
-        uploadedImage.secure_url;
-    }
-    // =================================
-    // Create Spend
-    // =================================
+//       if (!eventAdmin) {
+//         return res.status(403).json({
+//           success: false,
+//           message: "Only event admins can add spends",
+//         });
+//       }
+//     }
+//     let receiptImage = "";
+//     if (req.file) {
+//       const uploadedImage =await cloudinary.uploader.upload(req.file.path, {
+//         folder: "spends",
+//       });
+//       receiptImage =
+//         uploadedImage.secure_url;
+//     }
+//     // =================================
+//     // Create Spend
+//     // =================================
 
-    const spend = await Spend.create({
-      event,
-      title: title.trim(),
-      amount:Number(amount),
-      category: category || "Other",
-      paidBy,
-      paidTo: paidTo || "",
-      notes: notes || "",
-      spendDate: spendDate || Date.now(),
-      receiptNumber: receiptNumber || "",
-      receiptImage,
-      createdBy: dbUser._id,
-    });
+//     const spend = await Spend.create({
+//       event,
+//       title: title.trim(),
+//       amount:Number(amount),
+//       category: category || "Other",
+//       paidBy,
+//       paidTo: paidTo || "",
+//       notes: notes || "",
+//       spendDate: spendDate || Date.now(),
+//       receiptNumber: receiptNumber || "",
+//       receiptImage,
+//       createdBy: dbUser._id,
+//     });
 
-    return res.status(201).json({
-      success: true,
-      message: "Spend added successfully",
-      data: spend,
-    });
-  } catch (error) {
-    console.error("Add Spend Error:", error);
+//     return res.status(201).json({
+//       success: true,
+//       message: "Spend added successfully",
+//       data: spend,
+//     });
+//   } catch (error) {
+//     console.error("Add Spend Error:", error);
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to add spend",
-      error: error.message,
-    });
-  }
-};
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to add spend",
+//       error: error.message,
+//     });
+//   }
+// };
 
 
-// Add this to your controller file
+// // Add this to your controller file
 
-export const getEventSpends = async (req, res) => {
-  try {
-    const { eventId } = req.params;
+// export const getEventSpends = async (req, res) => {
+//   try {
+//     const { eventId } = req.params;
 
-    const existingEvent = await Event.findById(eventId).lean();
-    if (!existingEvent) {
-      return res.status(404).json({
-        success: false,
-        message: "Event not found",
-      });
-    }
+//     const existingEvent = await Event.findById(eventId).lean();
+//     if (!existingEvent) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Event not found",
+//       });
+//     }
 
-    const spends = await Spend.find({ event: eventId })
-      .populate("paidBy", "name email")
-      .populate("createdBy", "name email")
-      .populate("approvedBy", "name email")
-      .sort({ spendDate: -1 });
+//     const spends = await Spend.find({ event: eventId })
+//       .populate("paidBy", "name email")
+//       .populate("createdBy", "name email")
+//       .populate("approvedBy", "name email")
+//       .sort({ spendDate: -1 });
 
-    const totalSpent = spends.reduce((sum, s) => sum + s.amount, 0);
+//     const totalSpent = spends.reduce((sum, s) => sum + s.amount, 0);
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        event: existingEvent,
-        spends,
-        summary: {
-          totalSpent,
-          totalCount:    spends.length,
-          pendingCount:  spends.filter((s) => s.status === "pending").length,
-          approvedCount: spends.filter((s) => s.status === "approved").length,
-          rejectedCount: spends.filter((s) => s.status === "rejected").length,
-          remainingBudget: (existingEvent.budget?.target || 0) - totalSpent,
-          totalBudget: existingEvent.budget?.target || 0,
-        },
-      },
-    });
-  } catch (error) {
-    console.error("Get Event Spends Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch spends",
-      error: error.message,
-    });
-  }
-};
-// Add these to your controller file
+//     return res.status(200).json({
+//       success: true,
+//       data: {
+//         event: existingEvent,
+//         spends,
+//         summary: {
+//           totalSpent,
+//           totalCount:    spends.length,
+//           pendingCount:  spends.filter((s) => s.status === "pending").length,
+//           approvedCount: spends.filter((s) => s.status === "approved").length,
+//           rejectedCount: spends.filter((s) => s.status === "rejected").length,
+//           remainingBudget: (existingEvent.budget?.target || 0) - totalSpent,
+//           totalBudget: existingEvent.budget?.target || 0,
+//         },
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Get Event Spends Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to fetch spends",
+//       error: error.message,
+//     });
+//   }
+// };
+// // Add these to your controller file
 
-export const updateSpend = async (req, res) => {
-  try {
-    const { spendId } = req.params;
-    const {
-      title,
-      amount,
-      category,
-      paidBy,
-      paidTo,
-      notes,
-      spendDate,
-      receiptNumber,
-    } = req.body;
+// export const updateSpend = async (req, res) => {
+//   try {
+//     const { spendId } = req.params;
+//     const {
+//       title,
+//       amount,
+//       category,
+//       paidBy,
+//       paidTo,
+//       notes,
+//       spendDate,
+//       receiptNumber,
+//     } = req.body;
 
-    const dbUser = await User.findById(req.user.id);
-    if (!dbUser) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+//     const dbUser = await User.findById(req.user.id);
+//     if (!dbUser) {
+//       return res.status(404).json({ success: false, message: "User not found" });
+//     }
 
-    const spend = await Spend.findById(spendId);
-    if (!spend) {
-      return res.status(404).json({ success: false, message: "Spend not found" });
-    }
+//     const spend = await Spend.findById(spendId);
+//     if (!spend) {
+//       return res.status(404).json({ success: false, message: "Spend not found" });
+//     }
 
-    // ── Permission Check ──────────────────────────────────────
-    const existingEvent = await Event.findById(spend.event);
+//     // ── Permission Check ──────────────────────────────────────
+//     const existingEvent = await Event.findById(spend.event);
 
-    if (existingEvent.society) {
-      const societyAdmin = await SocietyMember.findOne({
-        society: existingEvent.society,
-        user: dbUser._id,
-        role: "admin",
-      });
-      if (!societyAdmin) {
-        return res.status(403).json({
-          success: false,
-          message: "Only society admins can update spends",
-        });
-      }
-    } else {
-      const eventAdmin = await EventMember.findOne({
-        event: existingEvent._id,
-        user: dbUser._id,
-        role: "admin",
-      });
-      if (!eventAdmin) {
-        return res.status(403).json({
-          success: false,
-          message: "Only event admins can update spends",
-        });
-      }
-    }
+//     if (existingEvent.society) {
+//       const societyAdmin = await SocietyMember.findOne({
+//         society: existingEvent.society,
+//         user: dbUser._id,
+//         role: "admin",
+//       });
+//       if (!societyAdmin) {
+//         return res.status(403).json({
+//           success: false,
+//           message: "Only society admins can update spends",
+//         });
+//       }
+//     } else {
+//       const eventAdmin = await EventMember.findOne({
+//         event: existingEvent._id,
+//         user: dbUser._id,
+//         role: "admin",
+//       });
+//       if (!eventAdmin) {
+//         return res.status(403).json({
+//           success: false,
+//           message: "Only event admins can update spends",
+//         });
+//       }
+//     }
 
-    // ── Upload new receipt image if provided ──────────────────
-    let receiptImage = spend.receiptImage; // keep existing
-    if (req.file) {
-      const uploaded = await cloudinary.uploader.upload(req.file.path, {
-        folder: "spends",
-      });
-      receiptImage = uploaded.secure_url;
-    }
+//     // ── Upload new receipt image if provided ──────────────────
+//     let receiptImage = spend.receiptImage; // keep existing
+//     if (req.file) {
+//       const uploaded = await cloudinary.uploader.upload(req.file.path, {
+//         folder: "spends",
+//       });
+//       receiptImage = uploaded.secure_url;
+//     }
 
-    // ── Update fields ─────────────────────────────────────────
-    if (title)         spend.title         = title.trim();
-    if (amount)        spend.amount        = Number(amount);
-    if (category)      spend.category      = category;
-    if (paidBy)        spend.paidBy        = paidBy;
-    if (paidTo  !== undefined) spend.paidTo        = paidTo;
-    if (notes   !== undefined) spend.notes         = notes;
-    if (spendDate)     spend.spendDate     = spendDate;
-    if (receiptNumber !== undefined) spend.receiptNumber = receiptNumber;
-    spend.receiptImage = receiptImage;
+//     // ── Update fields ─────────────────────────────────────────
+//     if (title)         spend.title         = title.trim();
+//     if (amount)        spend.amount        = Number(amount);
+//     if (category)      spend.category      = category;
+//     if (paidBy)        spend.paidBy        = paidBy;
+//     if (paidTo  !== undefined) spend.paidTo        = paidTo;
+//     if (notes   !== undefined) spend.notes         = notes;
+//     if (spendDate)     spend.spendDate     = spendDate;
+//     if (receiptNumber !== undefined) spend.receiptNumber = receiptNumber;
+//     spend.receiptImage = receiptImage;
 
-    await spend.save();
+//     await spend.save();
 
-    const updated = await Spend.findById(spendId)
-      .populate("paidBy", "name email")
-      .populate("createdBy", "name email");
+//     const updated = await Spend.findById(spendId)
+//       .populate("paidBy", "name email")
+//       .populate("createdBy", "name email");
 
-    return res.status(200).json({
-      success: true,
-      message: "Spend updated successfully",
-      data: updated,
-    });
-  } catch (error) {
-    console.error("Update Spend Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update spend",
-      error: error.message,
-    });
-  }
-};
+//     return res.status(200).json({
+//       success: true,
+//       message: "Spend updated successfully",
+//       data: updated,
+//     });
+//   } catch (error) {
+//     console.error("Update Spend Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to update spend",
+//       error: error.message,
+//     });
+//   }
+// };
 
-export const deleteSpend = async (req, res) => {
-  try {
-    const { spendId } = req.params;
+// export const deleteSpend = async (req, res) => {
+//   try {
+//     const { spendId } = req.params;
 
-    const dbUser = await User.findById(req.user.id);
-    if (!dbUser) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+//     const dbUser = await User.findById(req.user.id);
+//     if (!dbUser) {
+//       return res.status(404).json({ success: false, message: "User not found" });
+//     }
 
-    const spend = await Spend.findById(spendId);
-    if (!spend) {
-      return res.status(404).json({ success: false, message: "Spend not found" });
-    }
+//     const spend = await Spend.findById(spendId);
+//     if (!spend) {
+//       return res.status(404).json({ success: false, message: "Spend not found" });
+//     }
 
-    // ── Permission Check ──────────────────────────────────────
-    const existingEvent = await Event.findById(spend.event);
+//     // ── Permission Check ──────────────────────────────────────
+//     const existingEvent = await Event.findById(spend.event);
 
-    if (existingEvent.society) {
-      const societyAdmin = await SocietyMember.findOne({
-        society: existingEvent.society,
-        user: dbUser._id,
-        role: "admin",
-      });
-      if (!societyAdmin) {
-        return res.status(403).json({
-          success: false,
-          message: "Only society admins can delete spends",
-        });
-      }
-    } else {
-      const eventAdmin = await EventMember.findOne({
-        event: existingEvent._id,
-        user: dbUser._id,
-        role: "admin",
-      });
-      if (!eventAdmin) {
-        return res.status(403).json({
-          success: false,
-          message: "Only event admins can delete spends",
-        });
-      }
-    }
+//     if (existingEvent.society) {
+//       const societyAdmin = await SocietyMember.findOne({
+//         society: existingEvent.society,
+//         user: dbUser._id,
+//         role: "admin",
+//       });
+//       if (!societyAdmin) {
+//         return res.status(403).json({
+//           success: false,
+//           message: "Only society admins can delete spends",
+//         });
+//       }
+//     } else {
+//       const eventAdmin = await EventMember.findOne({
+//         event: existingEvent._id,
+//         user: dbUser._id,
+//         role: "admin",
+//       });
+//       if (!eventAdmin) {
+//         return res.status(403).json({
+//           success: false,
+//           message: "Only event admins can delete spends",
+//         });
+//       }
+//     }
 
-    // ── Delete receipt image from cloudinary if exists ────────
-    if (spend.receiptImage) {
-      const publicId = spend.receiptImage
-        .split("/")
-        .slice(-2)
-        .join("/")
-        .split(".")[0]; // extracts "spends/filename"
-      await cloudinary.uploader.destroy(publicId);
-    }
+//     // ── Delete receipt image from cloudinary if exists ────────
+//     if (spend.receiptImage) {
+//       const publicId = spend.receiptImage
+//         .split("/")
+//         .slice(-2)
+//         .join("/")
+//         .split(".")[0]; // extracts "spends/filename"
+//       await cloudinary.uploader.destroy(publicId);
+//     }
 
-    await Spend.findByIdAndDelete(spendId);
+//     await Spend.findByIdAndDelete(spendId);
 
-    return res.status(200).json({
-      success: true,
-      message: "Spend deleted successfully",
-    });
-  } catch (error) {
-    console.error("Delete Spend Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to delete spend",
-      error: error.message,
-    });
-  }
-};
+//     return res.status(200).json({
+//       success: true,
+//       message: "Spend deleted successfully",
+//     });
+//   } catch (error) {
+//     console.error("Delete Spend Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Failed to delete spend",
+//       error: error.message,
+//     });
+//   }
+// };
