@@ -214,3 +214,81 @@ export const addParticipant = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+export const updateMember = async (req, res) => {
+  try {
+    const { eventId, memberId } = req.params;
+    const { name, phone, amountToPay, role } = req.body;
+
+    const admin = await EventMember.findOne({
+      event: eventId,
+      user: req.user.id,
+      role: "admin",
+    });
+    if (!admin) {
+      return res.status(403).json({
+        success: false,
+        message: "Only event admin can edit members.",
+      });
+    }
+
+    const member = await EventMember.findOne({ _id: memberId, event: eventId });
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        message: "Member not found in this event.",
+      });
+    }
+
+    if (role && !["admin", "member", "participant"].includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role.",
+      });
+    }
+
+    if (role && role !== "admin" && member.role === "admin") {
+      const adminCount = await EventMember.countDocuments({
+        event: eventId,
+        role: "admin",
+      });
+      if (adminCount <= 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Cannot change role — this is the only admin left for this event.",
+        });
+      }
+    }
+
+    // Validate amountToPay if provided — allowed to go below amountPaid,
+    // since the admin may be correcting a mistaken original amount.
+    if (amountToPay !== undefined) {
+      const amt = Number(amountToPay);
+      if (isNaN(amt) || amt < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Amount to pay must be a non-negative number.",
+        });
+      }
+      member.amountToPay = amt;
+    }
+
+    if (name !== undefined) member.name = name.trim();
+    if (phone !== undefined) member.phone = phone.trim() || null;
+    if (role !== undefined) member.role = role;
+
+    await member.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Member updated successfully.",
+      member,
+    });
+  } catch (error) {
+    console.error("Update Member Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

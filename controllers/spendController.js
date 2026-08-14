@@ -136,11 +136,28 @@ export const getEventSpends = async (req, res) => {
 
     const totalSpent = spends.reduce((sum, s) => sum + s.amount, 0);
 
+    // NEW: fetch members who can be selected as "Paid By"
+    let payers = [];
+    if (existingEvent.society) {
+      const societyMembers = await SocietyMember.find({ society: existingEvent.society })
+        .populate("user", "name email");
+      payers = societyMembers
+        .filter((m) => m.user) // guard against deleted/null users
+        .map((m) => ({ _id: m.user._id, name: m.user.name, email: m.user.email }));
+    } else {
+      const eventMembers = await EventMember.find({ event: eventId })
+        .populate("user", "name email");
+      payers = eventMembers
+        .filter((m) => m.user)
+        .map((m) => ({ _id: m.user._id, name: m.user.name, email: m.user.email }));
+    }
+    console.log(payers)
     return res.status(200).json({
       success: true,
       data: {
         event: existingEvent,
         spends,
+        payers, // NEW
         summary: {
           totalSpent,
           totalCount: spends.length,
@@ -161,7 +178,6 @@ export const getEventSpends = async (req, res) => {
     });
   }
 };
-
 // =====================================================
 // PUT /api/spends/:spendId
 // =====================================================
