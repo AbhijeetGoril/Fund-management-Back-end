@@ -12,7 +12,7 @@ import SocietyMember from "../models/Society/societyMemberSchema.js";
 
 export const createSociety = async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, category, description, location, privacy, membershipPolicy } = req.body;
 
     if (!name?.trim()) {
       return res.status(400).json({
@@ -21,12 +21,14 @@ export const createSociety = async (req, res) => {
       });
     }
 
-    // FIX: was looking up by firebaseUid, which only exists for Google
-    // sign-in users — every other controller uses req.user.id from your
-    // own JWT, so this was silently failing "User not found" for anyone
-    // who signed up via email/OTP instead of Google.
-    const dbUser = await User.findById(req.user.id);
+    if (!location?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Location is required",
+      });
+    }
 
+    const dbUser = await User.findById(req.user.id);
     if (!dbUser) {
       return res.status(404).json({
         success: false,
@@ -34,10 +36,7 @@ export const createSociety = async (req, res) => {
       });
     }
 
-    const existingSociety = await Society.findOne({
-      name: name.trim(),
-    });
-
+    const existingSociety = await Society.findOne({ name: name.trim() });
     if (existingSociety) {
       return res.status(409).json({
         success: false,
@@ -45,13 +44,25 @@ export const createSociety = async (req, res) => {
       });
     }
 
-    // Create society
+    let logo = "";
+    if (req.file) {
+      const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
+        folder: "societies",
+      });
+      logo = uploadedImage.secure_url;
+    }
+
     const society = await Society.create({
       name: name.trim(),
+      category: category || "Other",
+      description: description?.trim() || "",
+      location: location.trim(),
+      logo,
+      privacy: privacy === "public" ? "public" : "private",
+      membershipPolicy: membershipPolicy === "open" ? "open" : "approval_required",
       createdBy: dbUser._id,
     });
 
-    // Add creator as admin
     await SocietyMember.create({
       society: society._id,
       user: dbUser._id,

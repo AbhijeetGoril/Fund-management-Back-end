@@ -4,7 +4,12 @@ import { createSociety,createEvent, getAllMyRelatedEvents, getSingleEvent,getAll
 import { authMiddleware } from "../middleware/authMiddleware.js"
 import upload from "../middleware/upload.js"
 const router=express.Router()
-router.post("/createSociety",authMiddleware,createSociety)
+router.post(
+  "/createSociety",
+  authMiddleware,
+  upload.single("logo"),
+  createSociety
+);
 router.get("/events/allMyRelatedEvents",authMiddleware,getAllMyRelatedEvents)
 router.post("/events/createEvent",authMiddleware,upload.single("coverPhoto"),createEvent)
 
