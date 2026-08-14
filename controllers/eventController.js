@@ -218,7 +218,7 @@ export const addParticipant = async (req, res) => {
 export const updateMember = async (req, res) => {
   try {
     const { eventId, memberId } = req.params;
-    const { name, phone, amountToPay, role } = req.body;
+    const { name, phone, amountToPay, amountPaid, role } = req.body;
 
     const admin = await EventMember.findOne({
       event: eventId,
@@ -260,8 +260,6 @@ export const updateMember = async (req, res) => {
       }
     }
 
-    // Validate amountToPay if provided — allowed to go below amountPaid,
-    // since the admin may be correcting a mistaken original amount.
     if (amountToPay !== undefined) {
       const amt = Number(amountToPay);
       if (isNaN(amt) || amt < 0) {
@@ -273,11 +271,24 @@ export const updateMember = async (req, res) => {
       member.amountToPay = amt;
     }
 
+    // NEW: amountPaid is now directly editable too — for corrections,
+    // e.g. admin recorded the wrong payment amount and needs to fix it.
+    if (amountPaid !== undefined) {
+      const paid = Number(amountPaid);
+      if (isNaN(paid) || paid < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Amount paid must be a non-negative number.",
+        });
+      }
+      member.amountPaid = paid;
+    }
+
     if (name !== undefined) member.name = name.trim();
     if (phone !== undefined) member.phone = phone.trim() || null;
     if (role !== undefined) member.role = role;
 
-    await member.save();
+    await member.save(); // pre("save") hook recalculates paymentStatus from the new values
 
     return res.status(200).json({
       success: true,
