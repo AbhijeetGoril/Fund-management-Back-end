@@ -8,6 +8,10 @@ import cloudinary from "../config/cloudinary.js";
 // controllers/spendController.js
 import Spend from "../models/Event/SpendSchema.js";
 
+import Invitation from "../models/Invitation/invitationSchema.js";
+import jwt from "jsonwebtoken";
+import { createNotification } from "../utils/createNotification.js";
+
 import SocietyMember from "../models/Society/societyMemberSchema.js";
 
 export const createSociety = async (req, res) => {
@@ -63,10 +67,14 @@ export const createSociety = async (req, res) => {
       createdBy: dbUser._id,
     });
 
+    // FIX: added addedBy + status — required now that SocietyMember
+    // schema was extended to support offline/guest members too.
     await SocietyMember.create({
       society: society._id,
       user: dbUser._id,
       role: "admin",
+      addedBy: dbUser._id,
+      status: "active",
     });
 
     const populatedSociety = await Society.findById(society._id).populate(
@@ -352,6 +360,275 @@ export const getAllMySocieties = async (req, res) => {
     });
   } catch (error) {
     console.error("Get All My Societies Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+// Notify all existing society members (with real accounts) that
+// someone new was added. Skips the admin who just performed the action.
+const notifyExistingSocietyMembers = async ({ society, newMemberName, actingAdminId }) => {
+  const existingMembers = await SocietyMember.find({
+    society: society._id,
+    user: { $ne: null },
+  });
+
+  await Promise.all(
+    existingMembers
+      .filter((m) => m.user.toString() !== actingAdminId.toString())
+      .map((m) =>
+        createNotification({
+          recipient: m.user,
+          sender: actingAdminId,
+          type: "participant_added",
+          title: "New Society Member",
+          message: `${newMemberName} was added to "${society.name}".`,
+          relatedSociety: society._id,
+          link: `/society/${society._id}`,
+        })
+      )
+  );
+};
+
+// =====================================================
+// POST /societies/addMember
+// Body: { societyId, name, email, phone, role }
+// Mirrors addParticipant exactly:
+//  - No email -> offline member added directly
+//  - Email + existing user -> invitation sent (needs acceptance)
+//  - Email + no existing user -> "online guest" member added directly
+// =====================================================
+export const addSocietyMember = async (req, res) => {
+  try {
+    const { societyId, name, email, phone, role = "member" } = req.body;
+
+    if (!societyId) {
+      return res.status(400).json({ success: false, message: "Society ID is required." });
+    }
+    if (email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        return res.status(400).json({ success: false, message: "Invalid email address." });
+      }
+    }
+    if (role && !["admin", "member"].includes(role)) {
+      return res.status(400).json({ success: false, message: "Invalid role." });
+    }
+
+    const society = await Society.findById(societyId);
+    if (!society) {
+      return res.status(404).json({ success: false, message: "Society not found." });
+    }
+
+    const admin = await SocietyMember.findOne({
+      society: societyId,
+      user: req.user.id,
+      role: "admin",
+    });
+    if (!admin) {
+      return res.status(403).json({ success: false, message: "Only society admin can add members." });
+    }
+
+    // =====================================================
+    // OFFLINE MEMBER (no email at all)
+    // =====================================================
+    if (!email) {
+      if (!name?.trim()) {
+        return res.status(400).json({ success: false, message: "Name is required for an offline member." });
+      }
+
+      const member = await SocietyMember.create({
+        society: society._id,
+        user: null,
+        name: name.trim(),
+        phone: phone?.trim() || null,
+        role,
+        status: "active",
+        addedBy: req.user.id,
+      });
+
+      await notifyExistingSocietyMembers({
+        society,
+        newMemberName: member.name,
+        actingAdminId: req.user.id,
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: "Member added successfully.",
+        member,
+      });
+    }
+
+    // =====================================================
+    // ONLINE / EMAIL FLOW
+    // =====================================================
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const user = await User.findOne({ email: normalizedEmail });
+
+    if (user && user._id.equals(req.user.id)) {
+      return res.status(400).json({ success: false, message: "You cannot add yourself as a member." });
+    }
+
+    const pendingInvitation = await Invitation.findOne({
+      society: society._id,
+      email: normalizedEmail,
+      status: "pending",
+    });
+    if (pendingInvitation) {
+      return res.status(409).json({ success: false, message: "Invitation already sent." });
+    }
+
+    // Case A: registered user -> send a real invitation (needs acceptance)
+    if (user) {
+      const alreadyMember = await SocietyMember.findOne({ society: society._id, user: user._id });
+      if (alreadyMember) {
+        return res.status(409).json({ success: false, message: "User is already a member." });
+      }
+
+      const token = jwt.sign(
+        { email: normalizedEmail, societyId: society._id, type: "society" },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      const invitation = await Invitation.create({
+        email: normalizedEmail,
+        user: user._id,
+        invitedBy: req.user.id,
+        type: "society",
+        society: society._id,
+        message: "",
+        token,
+      });
+
+      await createNotification({
+        recipient: user._id,
+        sender: req.user.id,
+        type: "invitation_received",
+        title: "New Society Invitation",
+        message: `You've been invited to join "${society.name}".`,
+        relatedSociety: society._id,
+        relatedInvitation: invitation._id,
+        link: `/invitations/${invitation._id}`,
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: "Invitation sent successfully.",
+        invitation,
+      });
+    }
+
+    // Case B: no account yet -> "online guest" member, added directly
+    if (!name?.trim()) {
+      return res.status(400).json({ success: false, message: "Name is required." });
+    }
+
+    const alreadyGuest = await SocietyMember.findOne({ society: society._id, email: normalizedEmail });
+    if (alreadyGuest) {
+      return res.status(409).json({ success: false, message: "Member already exists." });
+    }
+
+    const member = await SocietyMember.create({
+      society: society._id,
+      user: null,
+      name: name.trim(),
+      email: normalizedEmail,
+      phone: phone?.trim() || null,
+      role,
+      status: "active",
+      addedBy: req.user.id,
+    });
+
+    await notifyExistingSocietyMembers({
+      society,
+      newMemberName: member.name,
+      actingAdminId: req.user.id,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "The user has been successfully added to the society.",
+      member,
+    });
+  } catch (error) {
+    console.error("Add Society Member Error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+// =====================================================
+// GET /societies/:societyId
+// Full society detail — info, members, events
+// =====================================================
+export const getSocietyDetail = async (req, res) => {
+  try {
+    const { societyId } = req.params;
+    console.log(societyId)
+    const society = await Society.findById(societyId)
+      .populate("createdBy", "name email")
+      .lean();
+
+    if (!society) {
+      return res.status(404).json({
+        success: false,
+        message: "Society not found.",
+      });
+    }
+
+    // Must be a member to view details
+    const membership = await SocietyMember.findOne({
+      society: societyId,
+      user: req.user.id,
+    });
+    if (!membership) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not a member of this society.",
+      });
+    }
+
+    const members = await SocietyMember.find({ society: societyId })
+      .populate("user", "name email")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const events = await Event.find({ society: societyId })
+      .select("title description category date location status coverPhoto budget")
+      .sort({ date: -1 })
+      .lean();
+
+    const activeEvents = events.filter(
+      (e) => (e.status || "active").toLowerCase() === "active"
+    ).length;
+
+    const totalCollected = events.reduce(
+      (sum, e) => sum + (e.budget?.collected || 0),
+      0
+    );
+
+    return res.status(200).json({
+      success: true,
+      society,
+      members,
+      events,
+      isAdmin: membership.role === "admin",
+      summary: {
+        totalMembers: members.length,
+        totalAdmins: members.filter((m) => m.role === "admin").length,
+        totalEvents: events.length,
+        activeEvents,
+        totalCollected,
+      },
+    });
+  } catch (error) {
+    console.error("Get Society Detail Error:", error);
     return res.status(500).json({
       success: false,
       message: error.message,
