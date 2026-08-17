@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import Event from "../models/Event/Event.js";
 import EventMember from "../models/Event/EventMemberSchema.js";
+import SocietyMember from "../models/Society/societyMemberSchema.js";
 import Invitation from "../models/Invitation/invitationSchema.js";
 import User from "../models/User.js";
 import { createNotification } from "../utils/createNotification.js";
@@ -28,6 +29,26 @@ const notifyExistingMembers = async ({ event, newParticipant, actingAdminId }) =
         })
       )
   );
+};
+
+// Helper: is this user an admin of this event, EITHER directly as an
+// EventMember admin, OR as the admin of the society this event belongs to.
+const isEventOrSocietyAdmin = async (event, userId) => {
+  if (event.society) {
+    const societyAdmin = await SocietyMember.findOne({
+      society: event.society,
+      user: userId,
+      role: "admin",
+    });
+    if (societyAdmin) return true;
+  }
+
+  const eventAdmin = await EventMember.findOne({
+    event: event._id,
+    user: userId,
+    role: "admin",
+  });
+  return !!eventAdmin;
 };
 
 export const addParticipant = async (req, res) => {
@@ -59,13 +80,13 @@ export const addParticipant = async (req, res) => {
       return res.status(404).json({ success: false, message: "Event not found." });
     }
 
-    const admin = await EventMember.findOne({
-      event: eventId,
-      user: req.user.id,
-      role: "admin",
-    });
-    if (!admin) {
-      return res.status(403).json({ success: false, message: "Only event admin can add participants." });
+    // UPDATED: society admin OR event admin can add participants
+    const authorized = await isEventOrSocietyAdmin(event, req.user.id);
+    if (!authorized) {
+      return res.status(403).json({
+        success: false,
+        message: "Only event or society admin can add participants.",
+      });
     }
 
     // =====================================================
@@ -90,7 +111,6 @@ export const addParticipant = async (req, res) => {
       event.members.push(participant._id);
       await event.save();
 
-      // Notify existing members that someone new joined
       await notifyExistingMembers({
         event,
         newParticipant: participant,
@@ -148,7 +168,6 @@ export const addParticipant = async (req, res) => {
         token,
       });
 
-      // Notify the invited user directly (they'll accept/decline later)
       await createNotification({
         recipient: user._id,
         sender: req.user.id,
@@ -160,10 +179,9 @@ export const addParticipant = async (req, res) => {
         link: `/invitations/${invitation._id}`,
       });
 
-      // NOTE: do NOT notify existing members here — this person hasn't
-      // actually joined yet, only been invited. The "participant_added"
-      // notification to existing members belongs in acceptInvitation,
-      // once they actually accept and become an EventMember.
+      // NOTE: existing members are NOT notified here — this person
+      // hasn't actually joined yet, only been invited. That trigger
+      // belongs in acceptInvitation, once they actually accept.
 
       return res.status(201).json({
         success: true,
@@ -197,7 +215,6 @@ export const addParticipant = async (req, res) => {
     event.members.push(participant._id);
     await event.save();
 
-    // Notify existing members that someone new joined
     await notifyExistingMembers({
       event,
       newParticipant: participant,
@@ -220,15 +237,17 @@ export const updateMember = async (req, res) => {
     const { eventId, memberId } = req.params;
     const { name, phone, amountToPay, amountPaid, role } = req.body;
 
-    const admin = await EventMember.findOne({
-      event: eventId,
-      user: req.user.id,
-      role: "admin",
-    });
-    if (!admin) {
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ success: false, message: "Event not found." });
+    }
+
+    // UPDATED: society admin OR event admin can edit members
+    const authorized = await isEventOrSocietyAdmin(event, req.user.id);
+    if (!authorized) {
       return res.status(403).json({
         success: false,
-        message: "Only event admin can edit members.",
+        message: "Only event or society admin can edit members.",
       });
     }
 
@@ -271,8 +290,6 @@ export const updateMember = async (req, res) => {
       member.amountToPay = amt;
     }
 
-    // NEW: amountPaid is now directly editable too — for corrections,
-    // e.g. admin recorded the wrong payment amount and needs to fix it.
     if (amountPaid !== undefined) {
       const paid = Number(amountPaid);
       if (isNaN(paid) || paid < 0) {
@@ -288,7 +305,7 @@ export const updateMember = async (req, res) => {
     if (phone !== undefined) member.phone = phone.trim() || null;
     if (role !== undefined) member.role = role;
 
-    await member.save(); // pre("save") hook recalculates paymentStatus from the new values
+    await member.save();
 
     return res.status(200).json({
       success: true,
