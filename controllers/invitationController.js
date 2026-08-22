@@ -6,6 +6,7 @@ import EventMember from "../models/Event/EventMemberSchema.js";
 import transporter from "../config/mailer.js";
 import jwt from "jsonwebtoken";
 import { createNotification } from "../utils/createNotification.js";
+import SocietyMember from "../models/Society/societyMemberSchema.js";
 
 export const inviteUser = async (req, res) => {
   try {
@@ -235,12 +236,13 @@ export const inviteUser = async (req, res) => {
 export const acceptInvitation = async (req, res) => {
   try {
     const { id } = req.params;
-
+    
     const invitation = await Invitation.findById(id)
       .populate("event")
       .populate("society")
       .populate("invitedBy");
-
+   
+   
     if (!invitation) {
       return res.status(404).json({
         success: false,
@@ -305,6 +307,33 @@ export const acceptInvitation = async (req, res) => {
       }
     }
 
+    // Society-type invitation -> create the actual SocietyMember
+    if (invitation.type === "society") {
+      const alreadyMember = await SocietyMember.findOne({
+        society: invitation.society._id,
+        user: currentUser._id,
+      });
+
+      if (!alreadyMember) {
+        newParticipant = await SocietyMember.create({
+          society: invitation.society._id,
+          user: currentUser._id,
+          name: currentUser.name,
+          email: currentUser.email,
+          role: "member",
+          status: "active",
+          addedBy: invitation.invitedBy._id,
+          invitedBy: invitation.invitedBy._id,
+        });
+
+        await Society.findByIdAndUpdate(invitation.society._id, {
+          $push: { members: newParticipant._id },
+        });
+      } else {
+        newParticipant = alreadyMember;
+      }
+    }
+
     invitation.status = "accepted";
     invitation.user = invitation.user || currentUser._id;
     await invitation.save();
@@ -316,12 +345,20 @@ export const acceptInvitation = async (req, res) => {
       type: "invitation_accepted",
       title: "Invitation Accepted",
       message: `${currentUser.name} accepted your invitation${
-        invitation.event ? ` to "${invitation.event.title}"` : ""
+        invitation.event
+          ? ` to "${invitation.event.title}"`
+          : invitation.society
+          ? ` to join "${invitation.society.name}"`
+          : ""
       }.`,
       relatedEvent: invitation.event?._id || null,
       relatedSociety: invitation.society?._id || null,
       relatedInvitation: invitation._id,
-      link: invitation.event ? `/events/${invitation.event._id}` : null,
+      link: invitation.event
+        ? `/events/${invitation.event._id}`
+        : invitation.society
+        ? `/society/${invitation.society._id}`
+        : null,
     });
 
     // Notify all OTHER existing event members that someone new joined
@@ -343,6 +380,30 @@ export const acceptInvitation = async (req, res) => {
               message: `${currentUser.name} joined "${invitation.event.title}".`,
               relatedEvent: invitation.event._id,
               link: `/events/${invitation.event._id}`,
+            })
+          )
+      );
+    }
+
+    // Notify all OTHER existing society members that someone new joined
+    if (invitation.type === "society" && newParticipant) {
+      const existingMembers = await SocietyMember.find({
+        society: invitation.society._id,
+        user: { $ne: null },
+      });
+
+      await Promise.all(
+        existingMembers
+          .filter((m) => m.user.toString() !== currentUser._id.toString())
+          .map((m) =>
+            createNotification({
+              recipient: m.user,
+              sender: currentUser._id,
+              type: "participant_added",
+              title: "New Member Joined",
+              message: `${currentUser.name} joined "${invitation.society.name}".`,
+              relatedSociety: invitation.society._id,
+              link: `/society/${invitation.society._id}`,
             })
           )
       );
