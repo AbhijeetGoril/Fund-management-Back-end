@@ -295,6 +295,7 @@ export const getAllMyRelatedEvents = async (req, res) => {
     });
     const memberEventIds = memberships.map((member) => member.event.toString());
     const events = await Event.find({
+      society: null,
       $or: [{ createdBy: req.user.id }, { _id: { $in: memberEventIds } }],
     })
       .populate("createdBy", "name email")
