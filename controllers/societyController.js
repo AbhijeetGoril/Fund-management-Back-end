@@ -105,7 +105,8 @@ export const createSociety = async (req, res) => {
 };
 export const createEvent = async (req, res) => {
   try {
-    const { title, date, description, societyId, location, budget } = req.body;
+    const { title, date, description, societyId, location, budget, memberMode, memberIds } =
+      req.body;
 
     if (!title) {
       return res.status(400).json({
@@ -113,9 +114,12 @@ export const createEvent = async (req, res) => {
       });
     }
 
-    const dbUser = await User.findOne({
-      firebaseUid: req.user.uid,
-    });
+    // FIX: this endpoint is hit via the normal JWT-authenticated axiosInstance,
+    // which sets req.user.id — not req.user.uid (that's only set by the
+    // separate firebaseAuth middleware). Looking up by firebaseUid here meant
+    // dbUser was always null for every create-event request coming from the
+    // actual UI, which would 404 every single time.
+    const dbUser = await User.findById(req.user.id);
 
     if (!dbUser) {
       return res.status(404).json({
@@ -134,12 +138,13 @@ export const createEvent = async (req, res) => {
         });
       }
 
-      const isAdmin = society.members.some(
-        (m) =>
-          m.user.toString() === dbUser._id.toString() && m.role === "admin",
-      );
+      const adminMembership = await SocietyMember.findOne({
+        society: society._id,
+        user: dbUser._id,
+        role: "admin",
+      });
 
-      if (!isAdmin) {
+      if (!adminMembership) {
         return res.status(403).json({
           message: "Admin access only",
         });
@@ -175,13 +180,106 @@ export const createEvent = async (req, res) => {
 
       // OPTIONAL BUDGET
       budget: {
-        target: budget || 0,
+        target: Number(budget) || 0,
       },
 
       coverPhoto,
     });
 
-    res.status(201).json(event);
+    // ── Bulk-add society members as event members ──────────────────────
+    // Only relevant when this event was created from inside a society
+    // (societyId present) and the frontend sent a memberMode.
+    let addedParticipants = [];
+
+    if (society && memberMode) {
+      let membersToAdd = [];
+
+      if (memberMode === "all") {
+        membersToAdd = await SocietyMember.find({ society: society._id });
+      } else if (memberMode === "select") {
+        let parsedIds = [];
+        try {
+          parsedIds = JSON.parse(memberIds || "[]");
+        } catch {
+          parsedIds = [];
+        }
+
+        if (parsedIds.length > 0) {
+          membersToAdd = await SocietyMember.find({
+            _id: { $in: parsedIds },
+            society: society._id, // guard against ids from another society
+          });
+        }
+      }
+
+      if (membersToAdd.length > 0) {
+        // Guard against the unique { event, user } index: skip anyone
+        // (with an actual account) who is already an EventMember for
+        // this event, instead of letting the whole insertMany reject
+        // on the first duplicate.
+        const memberUserIds = membersToAdd
+          .map((sm) => sm.user)
+          .filter(Boolean);
+
+        const existing = await EventMember.find({
+          event: event._id,
+          user: { $in: memberUserIds },
+        }).select("user");
+
+        const alreadyMemberUserIds = new Set(
+          existing.map((e) => e.user.toString())
+        );
+
+        const newMembersToAdd = membersToAdd.filter(
+          (sm) => !sm.user || !alreadyMemberUserIds.has(sm.user.toString())
+        );
+
+        if (newMembersToAdd.length > 0) {
+          const eventMemberDocs = newMembersToAdd.map((sm) => ({
+            event: event._id,
+            user: sm.user || null,
+            name: sm.name,
+            email: sm.email,
+            phone: sm.phone,
+            role: "member",
+            status: "active",
+            amountToPay: 0,
+            addedBy: dbUser._id,
+            invitedBy: dbUser._id,
+          }));
+
+          addedParticipants = await EventMember.insertMany(eventMemberDocs, {
+            ordered: false,
+          });
+        }
+
+        // Notify every added member who has an actual account.
+        // Skip the creator/actor themselves if they happened to be included.
+        await Promise.all(
+          addedParticipants
+            .filter(
+              (p) => p.user && p.user.toString() !== dbUser._id.toString()
+            )
+            .map((p) =>
+              createNotification({
+                recipient: p.user,
+                sender: dbUser._id,
+                type: "participant_added",
+                title: "Added to Event",
+                message: `${dbUser.name} added you to "${event.title}".`,
+                relatedEvent: event._id,
+                relatedSociety: society._id,
+                link: `/events/${event._id}`,
+              })
+            )
+        );
+      }
+    }
+
+    return res.status(201).json({
+      ...event.toObject(),
+      participantsAdded: addedParticipants.length,
+    });
   } catch (error) {
     console.log(error.message);
 
