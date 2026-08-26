@@ -83,7 +83,7 @@ const eventMemberSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-
+    dueDate: { type: Date, default: null },
     joinedAt: {
       type: Date,
       default: Date.now,
