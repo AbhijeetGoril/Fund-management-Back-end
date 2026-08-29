@@ -2,7 +2,6 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
-import firebaseAuth from "./middleware/firebaseAuth.js";
 import userRoutes from "./routes/userRoutes.js";
 import societyRoutes from "./routes/societyRoutes.js";
 import authRoutes from "./routes/authRoutes.js";

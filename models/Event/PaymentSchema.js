@@ -92,19 +92,18 @@ const paymentSchema = new mongoose.Schema(
 );
 
 // Guard: exactly one target ref must be set, matching targetType.
-paymentSchema.pre("validate", function (next) {
+paymentSchema.pre("validate", async function () {
   if (this.targetType === "event") {
     if (!this.eventMember) {
-      return next(new Error("eventMember is required when targetType is 'event'."));
+      throw new Error("eventMember is required when targetType is 'event'.");
     }
     this.societyMember = null;
   } else if (this.targetType === "society") {
     if (!this.societyMember) {
-      return next(new Error("societyMember is required when targetType is 'society'."));
+      throw new Error("societyMember is required when targetType is 'society'.");
     }
     this.eventMember = null;
   }
-  next();
 });
 
 // Fast lookups, most recent first.
