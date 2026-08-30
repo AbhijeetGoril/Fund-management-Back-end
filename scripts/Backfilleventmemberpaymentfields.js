@@ -60,6 +60,7 @@ const run = async () => {
       eventMember: member._id,
       event: member.event,
       amount: member.amountPaid,
+      type:"payment",
       paymentDate: member.updatedAt || member.joinedAt || member.createdAt,
       recordedBy: member.addedBy,
       method: "other",

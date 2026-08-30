@@ -23,6 +23,15 @@ const paymentSchema = new mongoose.Schema(
       required: true,
     },
 
+    // "payment"    -> a normal payment recorded via the Pay button (always positive)
+    // "correction" -> a manual edit to amountPaid via the edit-member form
+    //                 (can be positive or negative, representing the delta)
+    type: {
+      type: String,
+      enum: ["payment", "correction"],
+      default: "payment",
+    },
+
     // Set when targetType === "event"
     eventMember: {
       type: mongoose.Schema.Types.ObjectId,
@@ -54,7 +63,9 @@ const paymentSchema = new mongoose.Schema(
     amount: {
       type: Number,
       required: true,
-      min: 0,
+      // No min:0 here — "payment" type is validated as positive below,
+      // but "correction" type needs to allow negative deltas (e.g. an
+      // admin correcting amountPaid downward).
     },
 
     // When the payment actually happened (may differ slightly from
@@ -92,17 +103,27 @@ const paymentSchema = new mongoose.Schema(
 );
 
 // Guard: exactly one target ref must be set, matching targetType.
-paymentSchema.pre("validate", async function () {
+// Also enforce that "payment" entries are always positive — only
+// "correction" entries are allowed to be negative (or positive, for an
+// upward correction), since they represent a delta, not money received.
+paymentSchema.pre("validate", function () {
   if (this.targetType === "event") {
     if (!this.eventMember) {
-      throw new Error("eventMember is required when targetType is 'event'.");
+      return next(new Error("eventMember is required when targetType is 'event'."));
     }
     this.societyMember = null;
   } else if (this.targetType === "society") {
     if (!this.societyMember) {
-      throw new Error("societyMember is required when targetType is 'society'.");
+      return next(new Error("societyMember is required when targetType is 'society'."));
     }
     this.eventMember = null;
+  }
+
+  if (this.type === "payment" && this.amount <= 0) {
+    return next(new Error("A normal payment amount must be greater than 0."));
+  }
+  if (this.type === "correction" && this.amount === 0) {
+    return next(new Error("A correction amount cannot be 0."));
   }
 });
 
