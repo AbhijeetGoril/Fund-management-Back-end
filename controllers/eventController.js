@@ -5,6 +5,7 @@ import SocietyMember from "../models/Society/societyMemberSchema.js";
 import Invitation from "../models/Invitation/invitationSchema.js";
 import User from "../models/User.js";
 import { createNotification } from "../utils/createNotification.js";
+import Payment from "../models/Event/PaymentSchema.js"
 
 // Helper: notify all existing event members (with real accounts) that
 // someone new was added. Skips the admin who just performed the action.
@@ -235,7 +236,7 @@ export const addParticipant = async (req, res) => {
 export const updateMember = async (req, res) => {
   try {
     const { eventId, memberId } = req.params;
-    const { name, phone, amountToPay, amountPaid, role } = req.body;
+    const { name, phone, amountToPay, amountPaid, role, dueDate } = req.body;
 
     const event = await Event.findById(eventId);
     if (!event) {
@@ -249,6 +250,11 @@ export const updateMember = async (req, res) => {
         success: false,
         message: "Only event or society admin can edit members.",
       });
+    }
+
+    const dbUser = await User.findById(req.user.id);
+    if (!dbUser) {
+      return res.status(404).json({ success: false, message: "User not found." });
     }
 
     const member = await EventMember.findOne({ _id: memberId, event: eventId });
@@ -290,6 +296,13 @@ export const updateMember = async (req, res) => {
       member.amountToPay = amt;
     }
 
+    // Track the previous value BEFORE we overwrite it, so we can log
+    // the delta as a "correction" Payment entry below. This keeps the
+    // audit trail (sum of all Payment records) in sync with
+    // EventMember.amountPaid even when an admin corrects a mistake
+    // here instead of recording a real new payment via the Pay button.
+    const previousAmountPaid = member.amountPaid;
+
     if (amountPaid !== undefined) {
       const paid = Number(amountPaid);
       if (isNaN(paid) || paid < 0) {
@@ -304,8 +317,27 @@ export const updateMember = async (req, res) => {
     if (name !== undefined) member.name = name.trim();
     if (phone !== undefined) member.phone = phone.trim() || null;
     if (role !== undefined) member.role = role;
+    if (dueDate !== undefined) member.dueDate = dueDate || null;
 
     await member.save();
+
+    // Log the correction AFTER a successful save, so we never create a
+    // Payment record for a member update that failed validation above.
+    if (amountPaid !== undefined) {
+      const delta = member.amountPaid - previousAmountPaid;
+      if (delta !== 0) {
+        await Payment.create({
+          targetType: "event",
+          type: "correction",
+          eventMember: member._id,
+          event: member.event,
+          amount: delta, // signed — negative for a downward correction
+          recordedBy: dbUser._id,
+          method: "other",
+          note: "Manual correction via Edit Member",
+        });
+      }
+    }
 
     return res.status(200).json({
       success: true,
