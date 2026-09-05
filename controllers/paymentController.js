@@ -1,6 +1,7 @@
 import EventMember from "../models/Event/EventMemberSchema.js";
 import { createNotification } from "../utils/createNotification.js";
 import Payment from "../models/Event/PaymentSchema.js"; // match your actual path
+import cloudinary from "../config/cloudinary.js";
 // =====================================================
 // PATCH /api/events/:eventId/members/:memberId/payment
 // Admin records a payment against a member's balance.
@@ -66,6 +67,16 @@ export const recordPayment = async (req, res) => {
     member.amountPaid = newTotal;
     await member.save(); // triggers the schema's pre("save") hook to recalculate paymentStatus
 
+    // Optional receipt image, uploaded the same way createEvent handles
+    // coverPhoto — requires the route to use multer (e.g. upload.single("receiptImage"))
+    let receiptImage = "";
+    if (req.file) {
+      const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
+        folder: "payment_receipts",
+      });
+      receiptImage = uploadedImage.secure_url;
+    }
+
     // Create the actual Payment record — this is what keeps the audit
     // trail (sum of all Payment records for this member) in sync with
     // EventMember.amountPaid. type: "payment" marks this as a real,
@@ -80,6 +91,7 @@ export const recordPayment = async (req, res) => {
       recordedBy: req.user.id,
       method: req.body.method || "other",
       note: req.body.note || "",
+      receiptImage,
     });
 
     // Notify the member whose payment was recorded (only if they have an account)
