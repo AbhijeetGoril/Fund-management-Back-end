@@ -32,6 +32,37 @@ const notifyExistingMembers = async ({ event, newParticipant, actingAdminId }) =
   );
 };
 
+// Helper: notify all OTHER existing event members (with real accounts)
+// that a member's details were updated. Skips the admin who just
+// performed the action AND the member who was just edited (they get
+// their own personal notice separately, if applicable).
+// NOTE: reuses "event_updated" as the type since the Notification
+// model's enum doesn't currently have a dedicated "member_updated"
+// value. Consider adding one later for clearer distinction in the UI.
+const notifyMembersOfUpdate = async ({ event, updatedMember, actingAdminId }) => {
+  const existingMembers = await EventMember.find({
+    event: event._id,
+    user: { $ne: null },
+    _id: { $ne: updatedMember._id },
+  });
+
+  await Promise.all(
+    existingMembers
+      .filter((m) => m.user.toString() !== actingAdminId.toString())
+      .map((m) =>
+        createNotification({
+          recipient: m.user,
+          sender: actingAdminId,
+          type: "event_updated",
+          title: "Member Details Updated",
+          message: `${updatedMember.name || "A member"}'s details were updated in "${event.title}".`,
+          relatedEvent: event._id,
+          link: `/events/${event._id}`,
+        })
+      )
+  );
+};
+
 // Helper: is this user an admin of this event, EITHER directly as an
 // EventMember admin, OR as the admin of the society this event belongs to.
 const isEventOrSocietyAdmin = async (event, userId) => {
@@ -338,6 +369,30 @@ export const updateMember = async (req, res) => {
         });
       }
     }
+
+    // ── Notifications ──────────────────────────────────────────────
+    // 1) Personal notice to the member whose record just changed —
+    //    only if they have an account and aren't the one making the edit.
+    if (member.user && member.user.toString() !== dbUser._id.toString()) {
+      await createNotification({
+        recipient: member.user,
+        sender: dbUser._id,
+        type: "event_updated",
+        title: "Your Details Were Updated",
+        message: `${dbUser.name} updated your details in "${event.title}".`,
+        relatedEvent: event._id,
+        link: `/events/${event._id}`,
+      });
+    }
+
+    // 2) Broadcast to every OTHER member of this event (excluding the
+    //    actor and the member who was just edited).
+    await notifyMembersOfUpdate({
+      event,
+      updatedMember: member,
+      actingAdminId: dbUser._id,
+    });
+    // ──────────────────────────────────────────────────────────────
 
     return res.status(200).json({
       success: true,

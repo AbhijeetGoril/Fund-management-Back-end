@@ -1,6 +1,6 @@
 import EventMember from "../models/Event/EventMemberSchema.js";
 import { createNotification } from "../utils/createNotification.js";
-
+import Payment from "../models/Event/PaymentSchema.js"; // match your actual path
 // =====================================================
 // PATCH /api/events/:eventId/members/:memberId/payment
 // Admin records a payment against a member's balance.
@@ -39,7 +39,12 @@ export const recordPayment = async (req, res) => {
       });
     }
 
-    const member = await EventMember.findOne({ user: memberId, event: eventId });
+    // FIX: look up by the EventMember document's own _id, not by the
+    // `user` field. Offline members have user: null, so querying by
+    // `user: memberId` could never match them — this is exactly why
+    // offline payment recording was silently failing with
+    // "Member not found in this event."
+    const member = await EventMember.findOne({ _id: memberId, event: eventId });
     if (!member) {
       return res.status(404).json({
         success: false,
@@ -60,6 +65,22 @@ export const recordPayment = async (req, res) => {
 
     member.amountPaid = newTotal;
     await member.save(); // triggers the schema's pre("save") hook to recalculate paymentStatus
+
+    // Create the actual Payment record — this is what keeps the audit
+    // trail (sum of all Payment records for this member) in sync with
+    // EventMember.amountPaid. type: "payment" marks this as a real,
+    // positive payment (as opposed to type: "correction" used in
+    // updateMember for direct amountPaid edits).
+    await Payment.create({
+      targetType: "event",
+      type: "payment",
+      eventMember: member._id,
+      event: member.event,
+      amount,
+      recordedBy: req.user.id,
+      method: req.body.method || "other",
+      note: req.body.note || "",
+    });
 
     // Notify the member whose payment was recorded (only if they have an account)
     if (member.user) {

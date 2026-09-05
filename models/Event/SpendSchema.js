@@ -46,6 +46,7 @@ const spendSchema = new mongoose.Schema(
         "Transport",
         "Maintenance",
         "Emergency",
+        "Entertainment",
         "Other",
       ],
       default: "Other",
