@@ -92,9 +92,10 @@ export const addParticipant = async (req, res) => {
       email,
       phone,
       amountToPay = 0,
+      dueDate,
       message = "",
     } = req.body;
-
+    console.log("duedate",dueDate)
     if (!eventId) {
       return res.status(400).json({ success: false, message: "Event ID is required." });
     }
@@ -136,6 +137,7 @@ export const addParticipant = async (req, res) => {
         name: name.trim(),
         phone: phone?.trim() || null,
         amountToPay,
+        dueDate: dueDate || null,
         role: "participant",
         status: "active",
         addedBy: req.user.id,
@@ -190,6 +192,11 @@ export const addParticipant = async (req, res) => {
         { expiresIn: "7d" }
       );
 
+      // NOTE: dueDate is stored on the Invitation here so it can be
+      // carried over to the EventMember once accepted. This requires
+      // Invitation's schema to have a dueDate field (Date, default
+      // null) — add it if it isn't there yet, the same way amountToPay
+      // is already stored on Invitation.
       const invitation = await Invitation.create({
         email: normalizedEmail,
         user: user._id,
@@ -197,6 +204,7 @@ export const addParticipant = async (req, res) => {
         type: "event",
         event: event._id,
         amountToPay,
+        dueDate: dueDate || null,
         message,
         token,
       });
@@ -239,6 +247,7 @@ export const addParticipant = async (req, res) => {
       name: name.trim(),
       phone: phone?.trim() || null,
       amountToPay,
+      dueDate: dueDate || null,
       role: "participant",
       status: "active",
       addedBy: req.user.id,
