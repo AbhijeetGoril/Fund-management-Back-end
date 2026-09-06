@@ -65,7 +65,8 @@ const notifyMembersOfUpdate = async ({ event, updatedMember, actingAdminId }) =>
 
 // Helper: is this user an admin of this event, EITHER directly as an
 // EventMember admin, OR as the admin of the society this event belongs to.
-const isEventOrSocietyAdmin = async (event, userId) => {
+// EXPORTED so getMemberDetails (below) can reuse the same permission logic.
+export const isEventOrSocietyAdmin = async (event, userId) => {
   if (event.society) {
     const societyAdmin = await SocietyMember.findOne({
       society: event.society,
@@ -405,5 +406,57 @@ export const updateMember = async (req, res) => {
       success: false,
       message: error.message,
     });
+  }
+};
+
+/**
+ * GET /events/:eventId/members/:memberId
+ *
+ * Returns one member's full record plus their complete payment history
+ * (both real payments and manual corrections), newest first.
+ *
+ * Accessible by: the event/society admin, OR the member themself
+ * (if they have a linked account and are viewing their own record).
+ */
+export const getMemberDetails = async (req, res) => {
+  try {
+    const { eventId, memberId } = req.params;
+
+    const event = await Event.findById(eventId).populate("society", "name");
+    if (!event) {
+      return res.status(404).json({ success: false, message: "Event not found." });
+    }
+
+    const member = await EventMember.findOne({ _id: memberId, event: eventId })
+      .populate("user", "name email")
+      .populate("addedBy", "name email");
+
+    if (!member) {
+      return res.status(404).json({ success: false, message: "Member not found in this event." });
+    }
+
+    const isSelf = member.user && member.user._id.toString() === req.user.id;
+    const authorized = await isEventOrSocietyAdmin(event, req.user.id);
+
+    if (!authorized && !isSelf) {
+      return res.status(403).json({
+        success: false,
+        message: "You're not authorized to view this member's details.",
+      });
+    }
+
+    const payments = await Payment.find({ eventMember: memberId })
+      .populate("recordedBy", "name email")
+      .sort({ paymentDate: -1 });
+
+    return res.status(200).json({
+      success: true,
+      event: { _id: event._id, title: event.title, society: event.society },
+      member,
+      payments,
+    });
+  } catch (error) {
+    console.error("Get Member Details Error:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
