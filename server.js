@@ -11,7 +11,7 @@ import eventRoute from "./routes/eventRoute.js";
 import cookieParser from "cookie-parser";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import spendRoutes from "./routes/spendRoutes.js";
-
+import { startPaymentReminderCron } from "./services/Paymentremindercron.js"
 
 dotenv.config();          // 1️⃣ Load env FIRST
 connectDB();              // 2️⃣ Connect DB NEXT
@@ -43,4 +43,5 @@ app.use("/api/spends", spendRoutes);
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  startPaymentReminderCron(); // 3️⃣ Start the daily reminder schedule once the server is up
 });
