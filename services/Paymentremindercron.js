@@ -77,6 +77,33 @@ export const runDailyPaymentReminders = async () => {
       remindersSent++;
     }
 
+    // Also notify every OTHER admin of this event that this member
+    // still hasn't paid — so admins don't have to manually check who's
+    // overdue, the system flags it for them automatically. Excludes
+    // the member themselves in case they happen to be an admin too.
+    const admins = await EventMember.find({
+      event: member.event._id,
+      role: "admin",
+      user: { $ne: null },
+      _id: { $ne: member._id },
+    });
+
+    await Promise.all(
+      admins.map((admin) =>
+        createNotification({
+          recipient: admin.user,
+          sender: null,
+          type: "event_reminder",
+          title: isOverdue ? "Member Payment Overdue" : "Member Payment Due Soon",
+          message: isOverdue
+            ? `${member.name} still owes ₹${remaining.toLocaleString()} for "${member.event.title}" (was due ${dueDateText}).`
+            : `${member.name} owes ₹${remaining.toLocaleString()} for "${member.event.title}", due ${dueDateText}.`,
+          relatedEvent: member.event._id,
+          link: `/events/${member.event._id}/members/${member._id}`,
+        })
+      )
+    );
+
     member.lastReminderSentAt = new Date();
     await member.save();
   }
@@ -90,11 +117,11 @@ export const runDailyPaymentReminders = async () => {
  * Cron pattern "0 9 * * *" = every day at 9:00 AM server time.
  */
 export const startPaymentReminderCron = () => {
-  cron.schedule("53 14 * * *", () => {
+  cron.schedule("35 19 * * *", () => {
     runDailyPaymentReminders().catch((err) => {
       console.error("[payment-reminders] Cron run failed:", err);
     });
   });
 
-  console.log("[payment-reminders] Cron job scheduled for 9:00 AM daily.")
+  console.log("[payment-reminders] Cron job scheduled for 9:00 AM daily.");
 };
