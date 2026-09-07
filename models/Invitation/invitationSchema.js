@@ -52,6 +52,12 @@ const invitationSchema = new mongoose.Schema(
       min: 0,
     },
 
+    // Optional due date for payment/response
+    dueDate: {
+      type: Date,
+      default: null,
+    },
+
     // Optional invitation message
     message: {
       type: String,

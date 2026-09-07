@@ -10,7 +10,7 @@ import SocietyMember from "../models/Society/societyMemberSchema.js";
 
 export const inviteUser = async (req, res) => {
   try {
-    const { email, type, society, event, amountToPay, message } = req.body;
+    const { email, type, society, event, amountToPay, dueDate, message } = req.body;
 
     if (!email || !type) {
       return res.status(400).json({
@@ -118,6 +118,7 @@ export const inviteUser = async (req, res) => {
       society: society || null,
       event: event || null,
       amountToPay: amountToPay || 0,
+      dueDate: dueDate || null,
       message: message || "",
       token,
     });
@@ -178,6 +179,8 @@ export const inviteUser = async (req, res) => {
           ${message ? `<p><strong>Message:</strong> ${message}</p>` : ""}
 
           ${amountToPay > 0 ? `<p><strong>Amount:</strong> ₹${amountToPay}</p>` : ""}
+
+          ${dueDate ? `<p><strong>Due Date:</strong> ${new Date(dueDate).toLocaleDateString()}</p>` : ""}
 
           <br>
 
@@ -293,6 +296,7 @@ export const acceptInvitation = async (req, res) => {
           name: currentUser.name,
           email: currentUser.email,
           amountToPay: invitation.amountToPay || 0,
+          dueDate: invitation.dueDate || null,
           role: "member",
           status: "active",
           addedBy: invitation.invitedBy._id,
