@@ -469,3 +469,129 @@ export const getMemberDetails = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+/**
+ * GET /events/admin-overview
+ *
+ * Returns everything the logged-in user administers:
+ *   - societies where they hold role: "admin" in SocietyMember
+ *   - events where they hold role: "admin" directly in EventMember
+ *     (this naturally includes events under a society they admin,
+ *     IF they were also added as that specific event's admin — see
+ *     note below on society-wide admin coverage)
+ *
+ * NOTE: per your isEventOrSocietyAdmin permission logic, a society
+ * admin can manage ANY event under their society without being
+ * separately added as that event's own admin. To reflect that fully
+ * here, this also pulls in every event belonging to a society the
+ * user administers, even if they aren't individually an EventMember
+ * admin on it.
+ */
+export const getAdminOverview = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Societies where this user is an admin
+    const adminSocietyMemberships = await SocietyMember.find({
+      user: userId,
+      role: "admin",
+    }).populate("society");
+
+    const adminSocieties = adminSocietyMemberships
+      .map((m) => m.society)
+      .filter(Boolean);
+
+    const adminSocietyIds = adminSocieties.map((s) => s._id);
+
+    // Events where this user is directly an EventMember admin
+    const directAdminMemberships = await EventMember.find({
+      user: userId,
+      role: "admin",
+    }).populate({
+      path: "event",
+      populate: { path: "society", select: "name" },
+    });
+
+    const directAdminEvents = directAdminMemberships
+      .map((m) => m.event)
+      .filter(Boolean);
+
+    // Events under a society this user administers, even if they
+    // aren't individually listed as that event's EventMember admin
+    // (society admins can manage any event under their society)
+    const societyEvents = await Event.find({
+      society: { $in: adminSocietyIds },
+    }).populate("society", "name");
+
+    // Merge direct + society-derived events, de-duplicated by _id
+    const eventMap = new Map();
+    [...directAdminEvents, ...societyEvents].forEach((e) => {
+      eventMap.set(e._id.toString(), e);
+    });
+    const rawEvents = Array.from(eventMap.values()).sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
+    // For each event, pull the full due-date detail for every unpaid
+    // member who has a dueDate set — not just counts, but the actual
+    // name, remaining amount, due date, and status for each one, so
+    // the admin overview can list exactly who's overdue/due soon
+    // without opening each event individually.
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const classifyDueDate = (dueDate) => {
+      const due = new Date(dueDate);
+      due.setHours(0, 0, 0, 0);
+      const diffDays = Math.round((due - today) / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 0) return "overdue";
+      if (diffDays <= 5) return "due_soon";
+      return "upcoming";
+    };
+
+    const adminEvents = await Promise.all(
+      rawEvents.map(async (event) => {
+        const unpaidMembersWithDueDate = await EventMember.find({
+          event: event._id,
+          paymentStatus: { $ne: "paid" },
+          dueDate: { $ne: null },
+        })
+          .populate("user", "name email")
+          .sort({ dueDate: 1 }); // soonest/most overdue first
+
+        const dueDetails = unpaidMembersWithDueDate.map((m) => ({
+          memberId: m._id,
+          name: m.user?.name || m.name || "Unnamed",
+          email: m.user?.email || m.email || null,
+          amountToPay: m.amountToPay ?? 0,
+          amountPaid: m.amountPaid ?? 0,
+          amountRemaining: (m.amountToPay ?? 0) - (m.amountPaid ?? 0),
+          dueDate: m.dueDate,
+          status: classifyDueDate(m.dueDate), // "overdue" | "due_soon" | "upcoming"
+        }));
+
+        const overdueCount = dueDetails.filter((d) => d.status === "overdue").length;
+        const dueSoonCount = dueDetails.filter((d) => d.status === "due_soon").length;
+
+        return {
+          ...event.toObject(),
+          dueSummary: {
+            overdueCount,
+            dueSoonCount,
+            details: dueDetails, // full list, not just counts
+          },
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      societies: adminSocieties,
+      events: adminEvents,
+    });
+  } catch (error) {
+    console.error("Get Admin Overview Error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};

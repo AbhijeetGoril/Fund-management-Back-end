@@ -1,6 +1,6 @@
 import express from "express";
 import { authMiddleware } from "../middleware/authMiddleware.js";
-import { addParticipant, updateMember, getMemberDetails } from "../controllers/eventController.js";
+import { addParticipant, updateMember, getMemberDetails, getAdminOverview } from "../controllers/eventController.js";
 import { recordPayment } from "../controllers/paymentController.js";
 import upload from "../middleware/upload.js";
 
@@ -24,5 +24,5 @@ router.patch("/:eventId/members/:memberId", authMiddleware, updateMember);
 // path pattern. Still placing it last for consistency with your
 // documented convention of specific routes before generic ones.
 router.get("/:eventId/members/:memberId", authMiddleware, getMemberDetails);
-
+router.get("/admin-overview",authMiddleware,getAdminOverview)
 export default router;
