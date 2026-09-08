@@ -17,7 +17,7 @@ const notificationSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Notification type
+        // Notification type
     type: {
       type: String,
       enum: [
@@ -30,6 +30,9 @@ const notificationSchema = new mongoose.Schema(
         "event_reminder",
         "donation_received",
         "expense_added",
+        "join_request_received",
+        "join_request_approved",
+        "join_request_rejected",
       ],
       required: true,
     },
@@ -64,6 +67,12 @@ const notificationSchema = new mongoose.Schema(
     relatedInvitation: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Invitation",
+      default: null,
+    },
+
+    relatedJoinRequest: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "JoinRequest",
       default: null,
     },
 

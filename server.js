@@ -11,6 +11,7 @@ import eventRoute from "./routes/eventRoute.js";
 import cookieParser from "cookie-parser";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import spendRoutes from "./routes/spendRoutes.js";
+import joinRequestRoutes from "./routes/joinRequestRoutes.js";
 import { startPaymentReminderCron } from "./services/Paymentremindercron.js"
 
 dotenv.config();          // 1️⃣ Load env FIRST
@@ -38,6 +39,7 @@ app.use("/api/invitations", invitationRoute);
 app.use("/api/events", eventRoute);
 app.use("/api/notification", notificationRoutes);
 app.use("/api/spends", spendRoutes);
+app.use("/api/join-requests", joinRequestRoutes);
 
 
 const PORT = process.env.PORT || 3000;
