@@ -26,6 +26,7 @@ export const getNotifications = async (req, res) => {
       .populate("relatedEvent", "title")
       .populate("relatedSociety", "name")
       .populate("relatedInvitation", "status")
+      .populate("relatedJoinRequest", "status")
       .sort({ createdAt: -1 })
       .limit(100);
 

@@ -13,7 +13,7 @@ import { isEventOrSocietyAdmin } from "./eventController.js";
 export const requestToJoinSociety = async (req, res) => {
   try {
     const { societyId } = req.params;
-    const { message = "" } = req.body;
+    const { message = "" } = req.body || {};
     const userId = req.user.id;
 
     const society = await Society.findById(societyId);
@@ -73,7 +73,7 @@ export const requestToJoinSociety = async (req, res) => {
 export const requestToJoinEvent = async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { message = "" } = req.body;
+    const { message = "" } = req.body || {};
     const userId = req.user.id;
 
     const event = await Event.findById(eventId);
