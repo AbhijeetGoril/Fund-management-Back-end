@@ -360,7 +360,7 @@ export const rejectJoinRequest = async (req, res) => {
 // =====================================================
 // PATCH /join-requests/:id/cancel
 // Only the person who SENT the request can cancel it,
-// and only while it's still pending — mirrors cancelInvitation.
+// and only while it's still pending.
 // =====================================================
 export const cancelJoinRequest = async (req, res) => {
   try {

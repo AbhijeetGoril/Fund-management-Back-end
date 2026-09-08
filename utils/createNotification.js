@@ -11,6 +11,7 @@ export const createNotification = async ({
   relatedEvent = null,
   relatedSociety = null,
   relatedInvitation = null,
+  relatedJoinRequest = null,
   link = null,
 }) => {
   return Notification.create({
@@ -22,6 +23,7 @@ export const createNotification = async ({
     relatedEvent,
     relatedSociety,
     relatedInvitation,
+    relatedJoinRequest,
     link,
   });
 };
