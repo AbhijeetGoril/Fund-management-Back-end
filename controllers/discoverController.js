@@ -32,7 +32,7 @@ export const getDiscoverSocieties = async (req, res) => {
       type: "society",
       status: "pending",
     }).select("society");
-    const requestedSocietyIds = myJoinRequests.map((r) => r.society.toString());
+    const requestMap = new Map(myJoinRequests.map((r) => [r.society.toString(), r._id]));
 
     const excludedIds = [...myMemberSocietyIds, ...invitedSocietyIds];
 
@@ -43,7 +43,8 @@ export const getDiscoverSocieties = async (req, res) => {
 
     const enriched = societies.map((s) => ({
       ...s,
-      hasPendingRequest: requestedSocietyIds.includes(s._id.toString()),
+      hasPendingRequest: requestMap.has(s._id.toString()),
+      joinRequestId: requestMap.get(s._id.toString()) || null,
     }));
 
     return res.status(200).json({ success: true, total: enriched.length, societies: enriched });
@@ -53,12 +54,6 @@ export const getDiscoverSocieties = async (req, res) => {
   }
 };
 
-// =====================================================
-// GET /events/discover
-// Only standalone personal events (society: null) — events under a
-// society are joined by joining the society, so they're excluded
-// entirely here, not just filtered by membership.
-// =====================================================
 export const getDiscoverEvents = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -79,14 +74,14 @@ export const getDiscoverEvents = async (req, res) => {
       type: "event",
       status: "pending",
     }).select("event");
-    const requestedEventIds = myJoinRequests.map((r) => r.event.toString());
+    const requestMap = new Map(myJoinRequests.map((r) => [r.event.toString(), r._id]));
 
     const excludedIds = [...myMemberEventIds, ...invitedEventIds];
 
     const events = await Event.find({
-      society: null, // exclude every society-attached event outright
+      society: null,
       _id: { $nin: excludedIds },
-      createdBy: { $ne: userId }, // creator is auto-added as admin via the post-save hook, but guard anyway
+      createdBy: { $ne: userId },
     })
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 })
@@ -94,7 +89,8 @@ export const getDiscoverEvents = async (req, res) => {
 
     const enriched = events.map((e) => ({
       ...e,
-      hasPendingRequest: requestedEventIds.includes(e._id.toString()),
+      hasPendingRequest: requestMap.has(e._id.toString()),
+      joinRequestId: requestMap.get(e._id.toString()) || null,
     }));
 
     return res.status(200).json({ success: true, total: enriched.length, events: enriched });

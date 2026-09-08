@@ -356,3 +356,36 @@ export const rejectJoinRequest = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// =====================================================
+// PATCH /join-requests/:id/cancel
+// Only the person who SENT the request can cancel it,
+// and only while it's still pending — mirrors cancelInvitation.
+// =====================================================
+export const cancelJoinRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const joinRequest = await JoinRequest.findById(id);
+
+    if (!joinRequest) {
+      return res.status(404).json({ success: false, message: "Join request not found." });
+    }
+
+    if (joinRequest.user.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: "You are not authorized to cancel this request." });
+    }
+
+    if (joinRequest.status !== "pending") {
+      return res.status(409).json({ success: false, message: `Cannot cancel — request already ${joinRequest.status}.` });
+    }
+
+    joinRequest.status = "cancelled";
+    await joinRequest.save();
+
+    return res.status(200).json({ success: true, message: "Join request cancelled.", joinRequest });
+  } catch (error) {
+    console.error("Cancel Join Request Error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
