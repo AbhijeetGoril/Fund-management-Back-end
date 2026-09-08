@@ -7,6 +7,7 @@ import transporter from "../config/mailer.js";
 import jwt from "jsonwebtoken";
 import { createNotification } from "../utils/createNotification.js";
 import SocietyMember from "../models/Society/societyMemberSchema.js";
+import { isEventOrSocietyAdmin } from "./eventController.js";
 
 export const inviteUser = async (req, res) => {
   try {
@@ -548,6 +549,54 @@ export const cancelInvitation = async (req, res) => {
     });
   } catch (error) {
     console.error("Cancel Invitation Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// =====================================================
+// GET /api/invitations/event/:eventId/pending
+// Lists every still-pending invitation for this event, so admins can
+// see who's been invited but hasn't accepted yet. Accessible by any
+// event or society admin, not just whoever originally sent each invite
+// (unlike cancelInvitation, which is sender-only).
+// =====================================================
+export const getPendingInvitationsForEvent = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found.",
+      });
+    }
+
+    const authorized = await isEventOrSocietyAdmin(event, req.user.id);
+    if (!authorized) {
+      return res.status(403).json({
+        success: false,
+        message: "Only event or society admin can view pending invitations.",
+      });
+    }
+
+    const pendingInvitations = await Invitation.find({
+      event: eventId,
+      type: "event",
+      status: "pending",
+    })
+      .populate("invitedBy", "name email")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      invitations: pendingInvitations,
+    });
+  } catch (error) {
+    console.error("Get Pending Invitations Error:", error);
     return res.status(500).json({
       success: false,
       message: error.message,
