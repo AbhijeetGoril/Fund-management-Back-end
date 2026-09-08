@@ -557,6 +557,29 @@ export const cancelInvitation = async (req, res) => {
 };
 
 // =====================================================
+// GET /api/invitations/sent
+// Lists every invitation the logged-in user has personally sent,
+// across all events and societies, regardless of status — sorted
+// newest first.
+// =====================================================
+export const getSentInvitations = async (req, res) => {
+  try {
+    const invitations = await Invitation.find({ invitedBy: req.user.id })
+      .populate("event", "title")
+      .populate("society", "name")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      invitations,
+    });
+  } catch (error) {
+    console.error("Get Sent Invitations Error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// =====================================================
 // GET /api/invitations/event/:eventId/pending
 // Lists every still-pending invitation for this event, so admins can
 // see who's been invited but hasn't accepted yet. Accessible by any
