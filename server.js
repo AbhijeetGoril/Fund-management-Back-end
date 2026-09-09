@@ -1,4 +1,5 @@
 import express from "express";
+import http from "http";
 import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
@@ -12,7 +13,9 @@ import cookieParser from "cookie-parser";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import spendRoutes from "./routes/spendRoutes.js";
 import joinRequestRoutes from "./routes/joinRequestRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
 import { startPaymentReminderCron } from "./services/Paymentremindercron.js"
+import { initSocketServer } from "./services/socketServer.js";
 
 dotenv.config();          // 1️⃣ Load env FIRST
 connectDB();              // 2️⃣ Connect DB NEXT
@@ -40,10 +43,16 @@ app.use("/api/events", eventRoute);
 app.use("/api/notification", notificationRoutes);
 app.use("/api/spends", spendRoutes);
 app.use("/api/join-requests", joinRequestRoutes);
+app.use("/api/chat", chatRoutes);
 
+// Socket.IO needs a raw http server, not app.listen() directly —
+// this wraps Express in one so both HTTP and WebSocket traffic
+// share the same port.
+const httpServer = http.createServer(app);
+initSocketServer(httpServer);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   startPaymentReminderCron(); // 3️⃣ Start the daily reminder schedule once the server is up
 });
