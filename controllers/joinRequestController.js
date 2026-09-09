@@ -389,3 +389,71 @@ export const cancelJoinRequest = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// =====================================================
+// GET /join-requests/received
+// Every PENDING join request across every society/event
+// this user administers (society-admin OR event-admin,
+// including events under an administered society).
+// =====================================================
+export const getReceivedJoinRequests = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const adminSocietyMemberships = await SocietyMember.find({
+      user: userId,
+      role: "admin",
+    }).select("society");
+    const adminSocietyIds = adminSocietyMemberships.map((m) => m.society);
+
+    const directAdminMemberships = await EventMember.find({
+      user: userId,
+      role: "admin",
+    }).select("event");
+    const directAdminEventIds = directAdminMemberships.map((m) => m.event);
+
+    const societyEvents = await Event.find({
+      society: { $in: adminSocietyIds },
+    }).select("_id");
+    const societyEventIds = societyEvents.map((e) => e._id);
+
+    const allAdminEventIds = [
+      ...new Set([...directAdminEventIds, ...societyEventIds].map(String)),
+    ];
+
+    const requests = await JoinRequest.find({
+      status: "pending",
+      $or: [
+        { type: "society", society: { $in: adminSocietyIds } },
+        { type: "event", event: { $in: allAdminEventIds } },
+      ],
+    })
+      .populate("user", "name email")
+      .populate("society", "name")
+      .populate("event", "title")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({ success: true, requests });
+  } catch (error) {
+    console.error("Get Received Join Requests Error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// =====================================================
+// GET /join-requests/sent
+// Every join request THIS user has sent, any status.
+// =====================================================
+export const getSentJoinRequests = async (req, res) => {
+  try {
+    const requests = await JoinRequest.find({ user: req.user.id })
+      .populate("society", "name")
+      .populate("event", "title")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({ success: true, requests });
+  } catch (error) {
+    console.error("Get Sent Join Requests Error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
