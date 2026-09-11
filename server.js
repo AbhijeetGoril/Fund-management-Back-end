@@ -52,6 +52,7 @@ const httpServer = http.createServer(app);
 initSocketServer(httpServer);
 
 const PORT = process.env.PORT || 3000;
+
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   startPaymentReminderCron(); // 3️⃣ Start the daily reminder schedule once the server is up
