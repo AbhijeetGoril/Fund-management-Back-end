@@ -13,7 +13,7 @@ export const socketAuth = (socket, next) => {
   try {
     const rawCookie = socket.handshake.headers?.cookie;
     const token = extractAuthToken(rawCookie);
-
+    console.log(rawCookie)
     if (!token) {
       return next(new Error("Authentication required — no authToken cookie found."));
     }
