@@ -8,7 +8,10 @@ let io = null;
 export const initSocketServer = (httpServer) => {
   io = new Server(httpServer, {
     cors: {
-      origin: "http://localhost:5173", // match your existing CORS origin
+      origin: [
+        "http://localhost:5173",
+        "https://fund-management-front-end.vercel.app",
+      ],
       credentials: true,
     },
   });

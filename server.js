@@ -6,27 +6,35 @@ import connectDB from "./config/db.js";
 import userRoutes from "./routes/userRoutes.js";
 import societyRoutes from "./routes/societyRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
-import aiRoutes from "./routes/aiRoutes.js"
-import invitationRoute from "./routes/invitationRoute.js"
+import aiRoutes from "./routes/aiRoutes.js";
+import invitationRoute from "./routes/invitationRoute.js";
 import eventRoute from "./routes/eventRoute.js";
 import cookieParser from "cookie-parser";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import spendRoutes from "./routes/spendRoutes.js";
 import joinRequestRoutes from "./routes/joinRequestRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
-import { startPaymentReminderCron } from "./services/Paymentremindercron.js"
+import { startPaymentReminderCron } from "./services/Paymentremindercron.js";
 import { initSocketServer } from "./services/socketServer.js";
 
-dotenv.config();          // 1️⃣ Load env FIRST
-connectDB();              // 2️⃣ Connect DB NEXT
+dotenv.config();
+connectDB();
 
 const app = express();
+
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  "http://localhost:5173",
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: "http://localhost:5173", // frontend URL
-    credentials: true,               // allow cookies
+    origin: allowedOrigins,
+    credentials: true,
   })
 );
+
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -45,15 +53,13 @@ app.use("/api/spends", spendRoutes);
 app.use("/api/join-requests", joinRequestRoutes);
 app.use("/api/chat", chatRoutes);
 
-// Socket.IO needs a raw http server, not app.listen() directly —
-// this wraps Express in one so both HTTP and WebSocket traffic
-// share the same port.
 const httpServer = http.createServer(app);
+
 initSocketServer(httpServer);
 
 const PORT = process.env.PORT || 3000;
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  startPaymentReminderCron(); // 3️⃣ Start the daily reminder schedule once the server is up
+  startPaymentReminderCron();
 });
