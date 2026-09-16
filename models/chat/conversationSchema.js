@@ -53,5 +53,4 @@ conversationSchema.index(
   { type: 1, event: 1 },
   { unique: true, partialFilterExpression: { type: "group", event: { $type: "objectId" } } }
 );
-
-export default mongoose.model("Conversation", conversationSchema);
+export default mongoose.models.Conversation || mongoose.model("Conversation", conversationSchema);
