@@ -195,16 +195,16 @@ export const googleAuth = async (req, res) => {
     });
 
     res
-      .cookie("authToken", loginToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      })
-      .json({
-        message: "Google signup/login successful",
-        user,
-      });
+  .cookie("authToken", loginToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  })
+  .json({
+    message: "Google signup/login successful",
+    user,
+  });
   } catch (error) {
     res.status(401).json({ message: error.message });
   }
