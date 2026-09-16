@@ -1,7 +1,7 @@
 import { Server } from "socket.io";
 import { socketAuth } from "../middleware/socketAuth.js";
-import Message from "../models/Chat/messageSchema.js";
-import Conversation from "../models/Chat/conversationSchema.js";
+import Message from "../models/chat/messageSchema.js";
+import Conversation from "../models/chat/conversationSchema.js";
 
 let io = null;
 
