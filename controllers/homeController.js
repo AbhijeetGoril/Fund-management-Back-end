@@ -40,38 +40,6 @@ export const getHomeStats = async (req, res) => {
     const totalMembers = totalMembersResult[0]?.total || 0;
 
     // ============================================
-    // ACTIVE UNIQUE MEMBERS
-    // ============================================
-
-    const activeMembersResult = await EventMember.aggregate([
-      {
-        $match: {
-          status: "active",
-          user: { $ne: null },
-        },
-      },
-      {
-        $group: {
-          _id: "$user",
-        },
-      },
-      {
-        $count: "total",
-      },
-    ]);
-
-    const activeMembers = activeMembersResult[0]?.total || 0;
-
-    // ============================================
-    // MEMBER ENGAGEMENT RATE
-    // ============================================
-
-    const memberEngagementRate =
-      totalMembers > 0
-        ? Math.round((activeMembers / totalMembers) * 100)
-        : 0;
-
-    // ============================================
     // TOTAL FUNDS MANAGED
     // ============================================
 
@@ -210,9 +178,6 @@ export const getHomeStats = async (req, res) => {
 
         completedEvents,
         successRate,
-
-        activeMembers,
-        memberEngagementRate,
       },
     });
   } catch (error) {
