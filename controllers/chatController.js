@@ -1,5 +1,5 @@
-import Conversation from "../models/Chat/conversationSchema.js";
-import Message from "../models/Chat/messageSchema.js";
+import Conversation from "../models/chat/conversationSchema.js";
+import Message from "../models/chat/messageSchema.js";
 import SocietyMember from "../models/Society/societyMemberSchema.js";
 import EventMember from "../models/Event/EventMemberSchema.js";
 import User from "../models/User.js";
