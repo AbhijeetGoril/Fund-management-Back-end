@@ -25,9 +25,15 @@ export const sendOtp = async (req, res) => {
       });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
+
     const otpHash = await bcrypt.hash(otp, 10);
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    const expiresAt = new Date(
+      Date.now() + 5 * 60 * 1000
+    );
 
     await Otp.deleteMany({ email });
 
@@ -37,23 +43,51 @@ export const sendOtp = async (req, res) => {
       otpHash,
     });
 
-    await transporter.sendMail({
-      from: `"Society App" <${process.env.EMAIL_USER}>`,
-      to: email,
+    // Send OTP using Resend
+    const { data, error } = await transporter.emails.send({
+      from: "Society Manager <noreply@findmyroommates.in>",
+      to: [email],
       subject: "Your OTP Code",
       html: `
-        <h2>Email Verification</h2>
-        <p>Your OTP is:</p>
-        <h1>${otp}</h1>
-        <p>This OTP is valid for 5 minutes.</p>
+        <div style="font-family: Arial, sans-serif;">
+          <h2>Email Verification</h2>
+
+          <p>Your OTP is:</p>
+
+          <h1 style="letter-spacing: 5px;">
+            ${otp}
+          </h1>
+
+          <p>This OTP is valid for 5 minutes.</p>
+
+          <p>
+            If you did not request this OTP,
+            please ignore this email.
+          </p>
+        </div>
       `,
     });
 
-    res.json({
+    if (error) {
+      console.error("❌ Resend error:", error);
+
+      await Otp.deleteOne({ email });
+
+      return res.status(500).json({
+        message: "Failed to send OTP email",
+      });
+    }
+
+    console.log("✅ OTP email sent:", data?.id);
+
+    return res.status(200).json({
       message: "OTP sent to email",
     });
+
   } catch (error) {
-    res.status(500).json({
+    console.error("❌ Send OTP error:", error);
+
+    return res.status(500).json({
       message: error.message,
     });
   }
@@ -86,7 +120,10 @@ export const verifyOtp = async (req, res) => {
       });
     }
 
-    const isValidOtp = await bcrypt.compare(otp, otpRecord.otpHash);
+    const isValidOtp = await bcrypt.compare(
+      otp,
+      otpRecord.otpHash
+    );
 
     if (!isValidOtp) {
       return res.status(400).json({
@@ -107,12 +144,15 @@ export const verifyOtp = async (req, res) => {
       }
     );
 
-    res.json({
+    return res.status(200).json({
       message: "OTP verified successfully",
       signupToken,
     });
+
   } catch (error) {
-    res.status(500).json({
+    console.error("❌ Verify OTP error:", error);
+
+    return res.status(500).json({
       message: error.message,
     });
   }
@@ -159,7 +199,10 @@ export const setPassword = async (req, res) => {
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(
+      password,
+      10
+    );
 
     const user = await User.create({
       email,
@@ -168,7 +211,6 @@ export const setPassword = async (req, res) => {
       emailVerified: true,
     });
 
-    // Link pending invitations
     await linkPendingInvitations(user);
 
     const loginToken = jwt.sign(
@@ -188,10 +230,11 @@ export const setPassword = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Signup completed successfully",
       user,
     });
+
   } catch (error) {
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({
@@ -199,7 +242,9 @@ export const setPassword = async (req, res) => {
       });
     }
 
-    res.status(500).json({
+    console.error("❌ Set password error:", error);
+
+    return res.status(500).json({
       message: error.message,
     });
   }
@@ -218,7 +263,9 @@ export const googleAuth = async (req, res) => {
 
     const token = authHeader.split(" ")[1];
 
-    const decoded = await admin.auth().verifyIdToken(token);
+    const decoded = await admin
+      .auth()
+      .verifyIdToken(token);
 
     const { email, name } = decoded;
 
@@ -241,7 +288,6 @@ export const googleAuth = async (req, res) => {
       isNewUser = true;
     }
 
-    // Link invitations only for a new account
     if (isNewUser) {
       await linkPendingInvitations(user);
     }
@@ -256,7 +302,7 @@ export const googleAuth = async (req, res) => {
       }
     );
 
-    res
+    return res
       .cookie("authToken", loginToken, {
         httpOnly: true,
         secure: true,
@@ -267,8 +313,11 @@ export const googleAuth = async (req, res) => {
         message: "Google signup/login successful",
         user,
       });
+
   } catch (error) {
-    res.status(401).json({
+    console.error("❌ Google auth error:", error);
+
+    return res.status(401).json({
       message: error.message,
     });
   }
@@ -277,7 +326,8 @@ export const googleAuth = async (req, res) => {
 // Get Current User
 export const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password");
+    const user = await User.findById(req.user.id)
+      .select("-password");
 
     if (!user) {
       return res.status(404).json({
@@ -285,12 +335,15 @@ export const getMe = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       user,
     });
+
   } catch (error) {
-    res.status(500).json({
+    console.error("❌ Get user error:", error);
+
+    return res.status(500).json({
       message: "Server error",
     });
   }
@@ -365,11 +418,15 @@ export const login = async (req, res) => {
         email: user.email,
       },
     });
-  } catch (error) {
-    console.error(error);
 
-    res.status(500).json({
+  } catch (error) {
+    console.error("❌ Login error:", error);
+
+    return res.status(500).json({
       message: "Server error",
     });
   }
 };
+
+
+
