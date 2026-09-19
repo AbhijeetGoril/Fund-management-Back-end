@@ -8,7 +8,7 @@ import HELP_BOT_KNOWLEDGE from "../knowledge/helpBotKnowledge.js";
 // free-tier quota. Fine for a single-server deploy; swap for a Redis-backed
 // limiter if you ever run multiple instances.
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
-const RATE_LIMIT_MAX = 3;
+const RATE_LIMIT_MAX = 20;
 const rateLimitBuckets = new Map(); // userId -> { count, windowStart }
 
 function isRateLimited(userId) {
