@@ -39,6 +39,7 @@ const askHelpBot = async (req, res) => {
     }
 
     const userId = req.user?.id || req.ip;
+    console.log("userid",userId)
     if (isRateLimited(userId)) {
       return res.status(429).json({
         error: "You've sent a lot of messages in a short time. Please wait a few minutes and try again.",

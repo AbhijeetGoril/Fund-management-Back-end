@@ -1,12 +1,9 @@
 import express from "express";
 import { askHelpBot } from "../controllers/helpBotController.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// TODO: import your real auth middleware, e.g.:
-// import { protect } from "../middleware/authMiddleware.js";
-// router.post("/", protect, askHelpBot);
-
-router.post("/", askHelpBot);
+router.post("/", authMiddleware, askHelpBot);
 
 export default router;
