@@ -17,7 +17,7 @@ import spendRoutes from "./routes/spendRoutes.js";
 import joinRequestRoutes from "./routes/joinRequestRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import homeRoute from "./routes/homeRoute.js";
-
+import helpBotRoutes from "./routes/helpBotRoutes.js";
 import { startPaymentReminderCron } from "./services/Paymentremindercron.js";
 import { initSocketServer } from "./services/socketServer.js";
 
@@ -67,7 +67,7 @@ app.use("/api/chat", chatRoutes);
 
 // Home page statistics
 app.use("/api/home", homeRoute);
-
+app.use("/api/help-chat", helpBotRoutes);
 // ============================================
 // HTTP + SOCKET SERVER
 // ============================================
