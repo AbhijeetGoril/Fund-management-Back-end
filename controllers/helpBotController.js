@@ -24,6 +24,8 @@ function isRateLimited(userId) {
   return bucket.count > RATE_LIMIT_MAX;
 }
 
+const NEEDS_HUMAN_HELP_MARKER = "[[NEEDS_HUMAN_HELP]]";
+
 // POST /api/help-chat
 // body: { message: string, history?: [{ role: "user"|"assistant", content: string }] }
 const askHelpBot = async (req, res) => {
@@ -39,7 +41,6 @@ const askHelpBot = async (req, res) => {
     }
 
     const userId = req.user?.id || req.ip;
-    console.log("userid",userId)
     if (isRateLimited(userId)) {
       return res.status(429).json({
         error: "You've sent a lot of messages in a short time. Please wait a few minutes and try again.",
@@ -70,13 +71,16 @@ const askHelpBot = async (req, res) => {
       max_tokens: 500,
     });
 
-    const answer = completion.choices?.[0]?.message?.content?.trim();
+    const rawAnswer = completion.choices?.[0]?.message?.content?.trim();
 
-    if (!answer) {
+    if (!rawAnswer) {
       return res.status(502).json({ error: "The help bot didn't return an answer. Please try again." });
     }
 
-    return res.status(200).json({ answer });
+    const needsHumanHelp = rawAnswer.includes(NEEDS_HUMAN_HELP_MARKER);
+    const answer = rawAnswer.replace(NEEDS_HUMAN_HELP_MARKER, "").trim();
+
+    return res.status(200).json({ answer, needsHumanHelp });
   } catch (error) {
     console.error("[helpBot] askHelpBot error:", error);
     return res.status(500).json({ error: "Something went wrong answering your question. Please try again." });
