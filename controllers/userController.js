@@ -73,3 +73,60 @@ export const createUser = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
+
+
+
+const UPI_PATTERN = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
+
+// PUT /api/users/profile
+// body: { name?: string, upiId?: string, address?: string }
+const updateProfile = async (req, res) => {
+  try {
+    const { name, upiId, address } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Not authorized" });
+    }
+
+    const updates = {};
+
+    if (name !== undefined) {
+      if (!name.trim()) {
+        return res.status(400).json({ error: "Name cannot be empty" });
+      }
+      updates.name = name.trim();
+    }
+
+    if (upiId !== undefined) {
+      if (!upiId.trim() || !UPI_PATTERN.test(upiId.trim())) {
+        return res.status(400).json({ error: "That doesn't look like a valid UPI ID (expected format: name@bank)" });
+      }
+      updates.upiId = upiId.trim();
+    }
+
+    if (address !== undefined) {
+      updates.address = address.trim() || null;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "No fields provided to update" });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(userId, updates, {
+      new: true,
+      select: "-password",
+    });
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    return res.status(200).json({ user: updatedUser });
+  } catch (error) {
+    console.error("[user] updateProfile error:", error);
+    return res.status(500).json({ error: "Could not update profile. Please try again." });
+  }
+};
+
+export { updateProfile };

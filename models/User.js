@@ -26,6 +26,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null, // e.g. "arungoril@okhdfcbank" — used to generate UPI payment links when this user is an admin collecting dues
     },
+
+    address: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );
